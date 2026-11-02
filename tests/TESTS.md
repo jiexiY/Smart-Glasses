@@ -14,6 +14,18 @@ Safe without models or API keys. Do not load Silero, Redimnet, Parakeet, or Insp
 - `tests/test_database.py` — `DatabaseManager` users, face and voice embeddings, chat history. Opens a temp `identities.db` and deletes it (including `-shm` and `-wal`). Never use `./database/identities.db`.
 - `tests/test_api_worker_queue.py` — `APIWorker` with fake clients: PARSE_INTENT and ANALYZE_MEMORY events, empty and unknown commands, `api_error` when the client raises.
 
+Install `requirements-test.txt` in a Python 3.11 virtual environment for these offline suites.
+On Windows set `$env:PYTHONPATH = '.'` and use `.venv\Scripts\python.exe`.
+
+The worker helper suite includes issue #8 regressions: known faces under different names; real
+bundled voice vectors under different names; conflicting and ambiguous recognition; stale/missing
+frames; delayed results; pending expiry; one enrollment per continuous track; and an actual SQLite
+rename that preserves the UUID, canonical name, embeddings and history. The SQLite tests collect
+unused connections before deleting temporary files because Windows keeps open handles locked.
+
+Dataset inventory, baseline failure, commands and validation limits:
+[`docs/identity-registration-testing.md`](../docs/identity-registration-testing.md).
+
 ## Live OpenAI
 
 Do not run unless asked. Each needs `OPENAI_API_KEY`.

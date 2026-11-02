@@ -1,3 +1,4 @@
+import gc
 import os
 import tempfile
 
@@ -56,6 +57,8 @@ def run_tests() -> None:
 
     print("Chat history saved and retrieved in correct order (newest first).")
 
+    # release sqlite handles before removing temporary files on Windows
+    gc.collect()
     for suffix in ("", "-shm", "-wal"):
         path = db_path + suffix
         if os.path.exists(path):

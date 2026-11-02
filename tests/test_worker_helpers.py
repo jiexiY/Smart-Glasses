@@ -1,4 +1,8 @@
+import gc
+import tempfile
 from collections import deque
+from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -217,6 +221,12 @@ class Directory:
     def get_voice_embeddings_by_uid(self, user_id: str) -> list[np.ndarray]:
         return self.voices.get(user_id, [])
 
+    def get_all_users(self) -> dict[str, str]:
+        return dict(self.names)
+
+    def get_all_voices(self) -> dict[str, list[np.ndarray]]:
+        return dict(self.voices)
+
     def create_user(self, user_id: str, name: str) -> None:
         self.created.append((user_id, name))
         self.names[user_id] = name
@@ -303,7 +313,7 @@ def test_identity_registration() -> None:
         "emb": np.array([1.0]),
         "bbox": (300, 220, 340, 260),
     }
-    state.vision_cache.append((5.0, [face]))
+    state.vision_cache.extend([(4.4, [face]), (4.7, [face]), (5.0, [face])])
     voice = np.array([1.0, 0.0])
     handle_event(
         {
@@ -326,6 +336,8 @@ def test_identity_registration() -> None:
 
     directory.by_name["Bob"] = ["bob-1"]
     directory.names["bob-1"] = "Bob"
+    state.vision_cache.clear()
+    state.registered_tracks.clear()
     handle_event(
         {
             "type": "intent",
@@ -340,7 +352,226 @@ def test_identity_registration() -> None:
         },
         state,
     )
-    assert state.pending_voice_registration == {"user_id": "bob-1", "timestamp": 6.0}
+    assert state.pending_voice_registration is None
+    assert len(directory.created) == 1
+
+
+def test_renamed_face_reuses_identity() -> None:
+    for name in ("jiexi yang", "jiexi", "yang", "jess", "Former Name", "Bob"):
+        directory, _, vision, audio, state = blank_state()
+        directory.names.update({"person-1": "jiexi yang", "person-2": "Bob"})
+        directory.by_name.update({"jiexi yang": ["person-1"], "Bob": ["person-2"]})
+        state.vision_cache.append((5.0, [identity_face("person-1")]))
+        handle_event(registration_event(name), state)
+        assert directory.created == [], "A recognized face must not create a second UUID"
+        assert directory.names == {"person-1": "jiexi yang", "person-2": "Bob"}
+        assert vision.items == [] and audio.items == []
+        assert state.pending_voice_registration is None
+
+
+def identity_face(user_id: str = DEFAULT_ID, track_id: int = 4) -> dict:
+    return {
+        "user_id": user_id, "track_id": track_id,
+        "score": 0.9 if user_id != DEFAULT_ID else 0.0,
+        "emb": None if user_id != DEFAULT_ID else np.array([1.0, 0.0]),
+        "bbox": (300, 220, 340, 260),
+    }
+
+
+def registration_event(name: str = "jess", timestamp: float = 5.0,
+                       voice: np.ndarray | None = None, self_intro: bool = False) -> dict:
+    return {
+        "type": "intent", "cmd": "REGISTER_IDENTITY", "timestamp": timestamp,
+        "voice_embedding": voice,
+        "args": {"name": name, "speaker_name": DEFAULT_NAME if self_intro else USER_NAME,
+                 "is_self_introduction": self_intro},
+    }
+
+
+def observe(state: CoordinatorState, timestamp: float, faces: list[dict]) -> None:
+    with patch("workers.coordinator_utils.handlers.time.time", return_value=timestamp):
+        handle_event({"type": "vision_result", "faces": faces}, state)
+
+
+def test_voice_identity_independent_of_name() -> None:
+    samples = Path(__file__).resolve().parents[1] / "database" / "sample_data"
+    for filename in ("voice_Matt1.npy", "voice_Shaun1.npy", "voice_Tiger1.npy", "voice_Tiger2.npy"):
+        directory, _, vision, audio, state = blank_state()
+        voice = np.load(samples / filename, allow_pickle=False)
+        directory.names["person-1"] = "Stored Name"
+        directory.voices["person-1"] = [voice]
+        handle_event(registration_event(voice=voice, self_intro=True), state)
+        assert directory.created == []
+        assert directory.names == {"person-1": "Stored Name"}
+        assert vision.items == [] and audio.items == []
+
+
+def test_conflicting_and_ambiguous_identity() -> None:
+    directory, _, vision, audio, state = blank_state()
+    directory.names.update({"face-person": "Ada", "voice-person": "Bob"})
+    voice = np.array([0.0, 1.0])
+    directory.voices["voice-person"] = [voice]
+    state.vision_cache.append((5.0, [identity_face("face-person")]))
+    handle_event(registration_event(voice=voice, self_intro=True), state)
+    assert directory.created == [] and 4 in state.pending_identities
+    assert state.pending_voice_registration is None
+    assert vision.items == [] and audio.items == []
+
+    directory.voices["face-person"] = [voice]
+    state.vision_cache.clear()
+    handle_event(registration_event(voice=voice, self_intro=True), state)
+    assert directory.created == []
+
+    # a greeting's voice belongs to the wearer, not the contact
+    state.vision_cache.append((5.0, [identity_face("face-person")]))
+    handle_event(registration_event(voice=voice, self_intro=False), state)
+    assert directory.created == [] and state.pending_identities == {}
+
+
+def test_missing_stale_multiple_and_invalid_faces() -> None:
+    for faces, frame_time in (
+        ([], 5.0), ([identity_face()], 1.0),
+        ([identity_face(), identity_face(track_id=5)], 5.0),
+        ([identity_face() | {"emb": np.array([np.nan])}], 5.0),
+        ([identity_face() | {"emb": np.array([0.0])}], 5.0),
+        ([identity_face("deleted-person")], 5.0),
+    ):
+        directory, _, vision, audio, state = blank_state()
+        state.vision_cache.extend([(frame_time - 0.6, faces), (frame_time - 0.3, faces), (frame_time, faces)])
+        handle_event(registration_event(), state)
+        assert directory.created == []
+        assert vision.items == [] and audio.items == []
+
+    directory, _, vision, audio, state = blank_state()
+    directory.names["person-1"] = "Stored Name"
+    state.vision_cache.append((5.0, [identity_face("person-1") | {"score": float("nan")}]))
+    handle_event(registration_event(), state)
+    assert directory.created == [] and state.pending_identities
+
+
+def test_unknown_retries_and_registers_once() -> None:
+    directory, _, vision, audio, state = blank_state()
+    face = identity_face()
+    observe(state, 5.0, [face])
+    handle_event(registration_event(), state)
+    assert directory.created == [] and 4 in state.pending_identities
+    handle_event(registration_event("Different Pending Name", 5.1), state)
+    observe(state, 5.3, [face])
+    assert directory.created == []
+    observe(state, 5.6, [face])
+    assert len(directory.created) == 1 and state.pending_identities == {}
+    assert len(vision.items) == 1
+    new_id = directory.created[0][0]
+    assert vision.items[0]["user_id"] == new_id
+    assert vision.items[0]["track_id"] == 4
+    # delayed and differently named intents may arrive before the worker updates its track
+    handle_event(registration_event("Another Name"), state)
+    observe(state, 5.8, [face])
+    handle_event(registration_event("A Third Name", 5.8), state)
+    assert len(directory.created) == 1 and len(vision.items) == 1
+    assert directory.names[new_id] == "jess"
+
+
+def test_voice_match_binds_face_without_duplicate() -> None:
+    directory, _, vision, audio, state = blank_state()
+    directory.names["person-1"] = "Stored Name"
+    voice = np.array([1.0, 0.0])
+    directory.voices["person-1"] = [voice]
+    face = identity_face()
+    state.vision_cache.extend([(4.4, [face]), (4.7, [face]), (5.0, [face])])
+    handle_event(registration_event(voice=voice, self_intro=True), state)
+    assert directory.created == [] and len(vision.items) == 1
+    assert vision.items[0]["user_id"] == "person-1"
+    handle_event(registration_event("Another Name"), state)
+    assert directory.created == [] and len(vision.items) == 1
+    assert audio.items == []
+
+    directory.voices.clear()
+    state.vision_cache.clear()
+    state.vision_cache.append((5.0, [identity_face("person-1")]))
+    handle_event(registration_event(voice=voice, self_intro=True), state)
+    assert len(audio.items) == 1 and audio.items[0]["user_id"] == "person-1"
+    assert directory.created == []
+
+
+def test_retry_recognizes_existing_and_expires() -> None:
+    directory, _, vision, audio, state = blank_state()
+    directory.names["person-1"] = "Original Name"
+    observe(state, 5.0, [identity_face()])
+    handle_event(registration_event(), state)
+    observe(state, 5.3, [identity_face("person-1")])
+    assert directory.created == [] and state.pending_identities == {}
+    assert vision.items == [] and audio.items == []
+
+    observe(state, 6.0, [identity_face(track_id=7)])
+    handle_event(registration_event(timestamp=6.0), state)
+    observe(state, 6.3, [identity_face(track_id=8)])
+    observe(state, 7.2, [identity_face(track_id=7)])
+    assert directory.created == [] and state.pending_identities == {}
+
+    # an unresolved same-name candidate must expire even while its track stays visible
+    directory.by_name["jess"] = ["person-1"]
+    observe(state, 8.0, [identity_face(track_id=9)])
+    handle_event(registration_event(timestamp=8.0), state)
+    for tick in range(1, 12):
+        observe(state, 8.0 + tick * 0.5, [identity_face(track_id=9)])
+    assert directory.created == [] and state.pending_identities == {}
+    assert state.pending_voice_registration is None
+
+
+def test_latest_observation_prevents_delayed_enrollment() -> None:
+    for latest_faces in ([identity_face("person-1")], [identity_face(track_id=8)]):
+        directory, _, vision, audio, state = blank_state()
+        directory.names["person-1"] = "Original Name"
+        unknown = identity_face()
+        state.vision_cache.extend([
+            (4.4, [unknown]), (4.7, [unknown]), (5.0, [unknown]), (5.8, latest_faces),
+        ])
+        handle_event(registration_event(), state)
+        assert directory.created == [] and vision.items == [] and audio.items == []
+
+
+def test_final_check_sees_new_voice_record() -> None:
+    directory, _, vision, audio, state = blank_state()
+    directory.names["person-1"] = "Stored Name"
+    voice = np.array([1.0, 0.0])
+    face = identity_face()
+    state.vision_cache.extend([(4.4, [face]), (4.7, [face]), (5.0, [face])])
+    with patch.object(directory, "get_all_voices", side_effect=[{}, {"person-1": [voice]}]):
+        handle_event(registration_event(voice=voice, self_intro=True), state)
+    assert directory.created == [] and state.pending_identities == {}
+    assert len(vision.items) == 1 and vision.items[0]["user_id"] == "person-1"
+    assert audio.items == []
+    handle_event(registration_event("Another Name"), state)
+    assert directory.created == [] and len(vision.items) == 1
+
+
+def test_sqlite_rename_preserves_identity() -> None:
+    from database.database import DatabaseManager
+
+    with tempfile.TemporaryDirectory() as temporary:
+        db = DatabaseManager(str(Path(temporary) / "identities.db"))
+        db.create_user("person-1", "Shrish")
+        face_embedding = np.array([1.0, 0.0])
+        voice_embedding = np.array([0.0, 1.0])
+        db.save_face_embedding("person-1", face_embedding)
+        db.save_voice_embedding("person-1", voice_embedding)
+        db.save_chat_history("person-1", "Existing conversation")
+        db.update_user("person-1", "Shrish Last_name")
+        _, _, vision, audio, state = blank_state()
+        state.db = db
+        state.vision_cache.append((5.0, [identity_face("person-1")]))
+        for name in ("Shrish", "Last_name", "Nickname"):
+            handle_event(registration_event(name), state)
+        assert db.get_all_users() == {"person-1": "Shrish Last_name"}
+        assert len(db.get_all_faces()["person-1"]) == 1
+        assert np.array_equal(db.get_all_faces()["person-1"][0], face_embedding)
+        assert len(db.get_all_voices()["person-1"]) == 1
+        assert np.array_equal(db.get_all_voices()["person-1"][0], voice_embedding)
+        assert db.get_chat_history("person-1")[0][0] == "Existing conversation"
+        assert vision.items == [] and audio.items == []
+        # sqlite connection contexts commit but do not close their handles
+        gc.collect()
 
 
 def test_audio_and_vision_helpers() -> None:
@@ -419,6 +650,16 @@ def run_tests() -> None:
     test_command_events()
     test_speech_handler()
     test_identity_registration()
+    test_renamed_face_reuses_identity()
+    test_voice_identity_independent_of_name()
+    test_conflicting_and_ambiguous_identity()
+    test_missing_stale_multiple_and_invalid_faces()
+    test_unknown_retries_and_registers_once()
+    test_voice_match_binds_face_without_duplicate()
+    test_retry_recognizes_existing_and_expires()
+    test_latest_observation_prevents_delayed_enrollment()
+    test_final_check_sees_new_voice_record()
+    test_sqlite_rename_preserves_identity()
     test_audio_and_vision_helpers()
     print("Worker helper tests passed")
 

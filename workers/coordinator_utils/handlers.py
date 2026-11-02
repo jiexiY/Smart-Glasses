@@ -2,7 +2,7 @@ import time
 import uuid
 from collections import deque
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import numpy as np
@@ -11,13 +11,18 @@ from core import config
 from workers.coordinator_utils.association import (
     PendingVoiceRegistration,
     associate_voice,
-    closest_frame,
-    face_matches,
     pending_registration_hit,
-    resolve_unknown_face,
     resolve_unknown_voice,
     trim_before,
-    voice_matches,
+)
+from workers.coordinator_utils.identity import (
+    MAX_FRAME_AGE,
+    RETRY_WINDOW,
+    PendingIdentity,
+    RegisteredTrack,
+    resolve_identity,
+    stable_unknown_track,
+    valid_embedding,
 )
 
 
@@ -30,6 +35,8 @@ class IdentityDirectory(Protocol):
     def save_chat_history(self, user_id: str, transcript: str) -> None: ...
     def get_user_ids_by_name(self, name: str) -> list[str]: ...
     def get_voice_embeddings_by_uid(self, user_id: str) -> list[np.ndarray]: ...
+    def get_all_users(self) -> dict[str, str]: ...
+    def get_all_voices(self) -> dict[str, list[np.ndarray]]: ...
     def create_user(self, user_id: str, name: str) -> None: ...
 
 
@@ -51,6 +58,8 @@ class CoordinatorState:
     frame_center_y: float
     max_frame_distance: float
     request_number: int
+    pending_identities: dict[int, PendingIdentity] = field(default_factory=dict)
+    registered_tracks: dict[int, RegisteredTrack] = field(default_factory=dict)
 
 
 def handle_event(event: dict[str, Any], state: CoordinatorState) -> None:
@@ -70,6 +79,14 @@ def handle_vision_result(event: dict[str, Any], state: CoordinatorState) -> None
     now = time.time()
     state.vision_cache.append((now, event.get("faces", [])))
     trim_before(state.vision_cache, now, state.cache_duration)
+    faces = event.get("faces", [])
+    active_tracks = {face.get("track_id") for face in faces}
+    for track_id, registration in list(state.registered_tracks.items()):
+        if now - registration.last_seen > MAX_FRAME_AGE:
+            del state.registered_tracks[track_id]
+        elif track_id in active_tracks:
+            registration.last_seen = now
+    retry_pending_identities(state, now, faces)
 
 
 def handle_speech(event: dict[str, Any], state: CoordinatorState) -> None:
@@ -221,66 +238,119 @@ def register_identity(
     timestamp: float,
     voice_embedding: np.ndarray | None,
 ) -> None:
-    name = args.get("name", config.DEFAULT_NAME)
-    speaker_name = args.get("speaker_name", config.DEFAULT_NAME)
-    is_self_intro = args.get("is_self_introduction", False)
-    existing_user_ids = state.db.get_user_ids_by_name(name)
-    # same name already stored, otherwise make a new person
-    if existing_user_ids:
-        bind_existing_identity(
-            state,
-            existing_user_ids,
-            name,
-            speaker_name,
-            is_self_intro,
-            timestamp,
-            voice_embedding,
-        )
+    raw_name = args.get("name", "")
+    if not isinstance(raw_name, str):
         return
-    create_identity(state, name, speaker_name, is_self_intro, timestamp, voice_embedding)
+    name = raw_name.strip()
+    if not name or name.casefold() == config.DEFAULT_NAME.casefold():
+        return
+    pending = PendingIdentity(dict(args), timestamp, voice_embedding, -1, timestamp)
+    attempt_identity_registration(state, pending, timestamp)
 
 
-def bind_existing_identity(
-    state: CoordinatorState,
-    existing_user_ids: list[str],
-    name: str,
-    speaker_name: str,
-    is_self_intro: bool,
-    timestamp: float,
-    voice_embedding: np.ndarray | None,
+def attempt_identity_registration(
+    state: CoordinatorState, pending: PendingIdentity, timestamp: float
 ) -> None:
-    # check the face in frame, or the voice, actually belongs to that name
-    frame = closest_frame(state.vision_cache, timestamp)
-    matched_user_id = None
-    face_known = False
-    voice_known = False
-    for uid in existing_user_ids:
-        face_known = face_matches(uid, frame)
-        voice_known = voice_is_known(state, uid, is_self_intro, voice_embedding)
-        if face_known or voice_known:
-            matched_user_id = uid
-            break
-
-    if matched_user_id is None:
-        print(
-            f"[Coordinator] Name '{name}' exists, but couldn't verify face/voice. Assuming existing identity."
-        )
-        # couldn't prove it; if the wearer said the name, wait for that person's voice
-        if speaker_name == config.USER_NAME:
-            state.pending_voice_registration = {
-                "user_id": existing_user_ids[0],
-                "timestamp": timestamp,
-            }
+    name = pending.args["name"].strip()
+    is_self_intro = pending.args.get("is_self_introduction", False)
+    users = state.db.get_all_users()
+    voices = state.db.get_all_voices()
+    resolution = resolve_identity(
+        state.vision_cache, timestamp, users, voices,
+        pending.voice_embedding, is_self_intro, state.registered_tracks,
+    )
+    face = resolution.face
+    track_id = face.get("track_id") if face else None
+    if pending.track_id != -1 and track_id != pending.track_id:
+        return
+    if resolution.status == "known" and resolution.user_id is not None:
+        reuse_identity(state, pending, resolution.user_id, face, users, voices, timestamp)
         return
 
-    # matched, so fill in whichever of face or voice we still don't have
-    print(f"[Coordinator] Verified existing identity: {name} (ID: {matched_user_id}).")
-    if not face_known:
-        register_unknown_face(state, timestamp, matched_user_id)
-    if not voice_known and is_self_intro and voice_embedding is not None:
-        enqueue_register_voice(state.audio_commands, matched_user_id, voice_embedding)
-    elif speaker_name == config.USER_NAME:
-        attempt_voice_registration(state, timestamp, matched_user_id)
+    if not isinstance(track_id, int):
+        return
+    previous = state.pending_identities.get(track_id)
+    if previous is not None and previous is not pending:
+        if 0 <= timestamp - previous.timestamp <= RETRY_WINDOW:
+            attempt_identity_registration(state, previous, timestamp)
+            return
+        del state.pending_identities[track_id]
+    pending.track_id = track_id
+    if state.vision_cache:
+        latest_time, latest_faces = state.vision_cache[-1]
+        if any(item.get("track_id") == track_id for item in latest_faces):
+            pending.last_seen = latest_time
+    state.pending_identities.setdefault(track_id, pending)
+    if resolution.status != "unknown":
+        return
+    # an existing name without biometric agreement stays unresolved
+    if state.db.get_user_ids_by_name(name):
+        return
+    if not stable_unknown_track(state.vision_cache, track_id, timestamp):
+        return
+    # resolve again against current records before the first write
+    latest_time, latest_faces = state.vision_cache[-1]
+    if (len(latest_faces) != 1 or latest_faces[0].get("track_id") != track_id
+            or not 0 <= latest_time - pending.timestamp <= RETRY_WINDOW):
+        return
+    latest_users = state.db.get_all_users()
+    latest_voices = state.db.get_all_voices()
+    latest = resolve_identity(
+        state.vision_cache, latest_time, latest_users, latest_voices,
+        pending.voice_embedding, is_self_intro, state.registered_tracks,
+    )
+    if latest.status == "known" and latest.user_id is not None:
+        reuse_identity(state, pending, latest.user_id, latest.face, latest_users, latest_voices, latest_time)
+        return
+    if latest.status != "unknown" or name in latest_users.values():
+        return
+    if not stable_unknown_track(state.vision_cache, track_id, latest_time):
+        return
+    create_identity(
+        state, name, pending.args.get("speaker_name", config.DEFAULT_NAME),
+        is_self_intro, pending.timestamp, pending.voice_embedding, latest.face, latest_time,
+    )
+    state.pending_identities.pop(track_id, None)
+
+
+def reuse_identity(
+    state: CoordinatorState,
+    pending: PendingIdentity,
+    user_id: str,
+    face: dict[str, Any] | None,
+    users: dict[str, str],
+    voices: dict[str, list[np.ndarray]],
+    timestamp: float,
+) -> None:
+    track_id = face.get("track_id") if face else None
+    if isinstance(track_id, int):
+        state.pending_identities.pop(track_id, None)
+        if (face.get("user_id", config.DEFAULT_ID) == config.DEFAULT_ID
+                and valid_embedding(face.get("emb"))
+                and track_id not in state.registered_tracks):
+            state.registered_tracks[track_id] = RegisteredTrack(user_id, pending.timestamp, timestamp)
+            state.vision_commands.put_nowait({
+                "cmd": "REGISTER_FACE", "track_id": track_id,
+                "user_id": user_id, "emb": face["emb"],
+            })
+        if (pending.args.get("is_self_introduction", False)
+                and valid_embedding(pending.voice_embedding) and not voices.get(user_id)):
+            enqueue_register_voice(state.audio_commands, user_id, pending.voice_embedding)
+    print(f"[Coordinator] Reused identity: {users[user_id]} ({user_id}); heard '{pending.args['name']}'")
+
+
+def retry_pending_identities(
+    state: CoordinatorState, timestamp: float, faces: list[dict[str, Any]]
+) -> None:
+    for track_id, pending in list(state.pending_identities.items()):
+        if (not 0 <= timestamp - pending.timestamp <= RETRY_WINDOW
+                or timestamp - pending.last_seen > MAX_FRAME_AGE):
+            del state.pending_identities[track_id]
+            continue
+        if any(face.get("track_id") == track_id for face in faces):
+            pending.last_seen = timestamp
+        if len(faces) == 1 and faces[0].get("track_id") == track_id:
+            attempt_identity_registration(state, pending, timestamp)
 
 
 def create_identity(
@@ -290,60 +360,27 @@ def create_identity(
     is_self_intro: bool,
     timestamp: float,
     voice_embedding: np.ndarray | None,
+    face: dict[str, Any],
+    observed_at: float,
 ) -> None:
     user_id = str(uuid.uuid4())
     state.db.create_user(user_id, name)
     print(f"[Coordinator] Created new identity: {name} ({user_id})")
-    register_unknown_face(state, timestamp, user_id)
+    state.registered_tracks[face["track_id"]] = RegisteredTrack(user_id, timestamp, observed_at)
+    state.vision_commands.put_nowait({
+        "cmd": "REGISTER_FACE", "track_id": face["track_id"],
+        "user_id": user_id, "emb": face["emb"],
+    })
     # they introduced themselves, so keep the voice that just spoke
     if (
         speaker_name == config.DEFAULT_NAME
         and is_self_intro
-        and voice_embedding is not None
+        and valid_embedding(voice_embedding)
     ):
         enqueue_register_voice(state.audio_commands, user_id, voice_embedding)
     # wearer named someone else, so grab a recent unknown voice or wait for the next one
     elif speaker_name == config.USER_NAME:
         attempt_voice_registration(state, timestamp, user_id)
-
-
-def voice_is_known(
-    state: CoordinatorState,
-    uid: str,
-    is_self_intro: bool,
-    voice_embedding: np.ndarray | None,
-) -> bool:
-    if not (is_self_intro and voice_embedding is not None):
-        return False
-    return voice_matches(
-        voice_embedding,
-        state.db.get_voice_embeddings_by_uid(uid),
-        is_self_intro=True,
-    )
-
-
-def register_unknown_face(
-    state: CoordinatorState, timestamp: float, user_id: str
-) -> None:
-    # unknown face nearest the center of the frame, around when the name was said
-    face = resolve_unknown_face(
-        state.vision_cache,
-        timestamp,
-        frame_area=state.frame_area,
-        frame_center_x=state.frame_center_x,
-        frame_center_y=state.frame_center_y,
-        max_frame_distance=state.max_frame_distance,
-    )
-    if not face:
-        return
-    state.vision_commands.put_nowait(
-        {
-            "cmd": "REGISTER_FACE",
-            "track_id": face.get("track_id"),
-            "user_id": user_id,
-            "emb": face.get("emb"),
-        }
-    )
 
 
 def attempt_voice_registration(

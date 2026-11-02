@@ -42,6 +42,11 @@ Audio loads Silero, Redimnet, and Parakeet in `setup()`, then emits `speech` on 
 
 The dashboard (`frontend/server.py`, port `MONITORING_PORT`) drains `log_queue` and reads the identity db.
 
+Identity registration resolves the observed face or self-introduction voice before using a spoken name.
+Known UUIDs keep their stored names. Unresolved single-track candidates retry for a bounded window;
+only a stable unknown track can create a user. Names alone never select an existing user.
+See `workers/coordinator_utils/identity.py` and `docs/identity-registration-testing.md`.
+
 ## Queues
 
 Owned by `core/shared_mem.py`:
@@ -64,15 +69,17 @@ Read the folder doc before editing that area:
 - [workers/AGENTS.md](workers/AGENTS.md)
 - [workers/audio_utils/AGENTS.md](workers/audio_utils/AGENTS.md)
 - [workers/vision_utils/AGENTS.md](workers/vision_utils/AGENTS.md)
-- [workers/coordinator_utils/AGENTS.md](workers/coordinator_utils/AGENTS.md)
+- [workers/coordinator_utils/COORDINATOR_UTILS.md](workers/coordinator_utils/COORDINATOR_UTILS.md)
 - [workers/api_utils/AGENTS.md](workers/api_utils/AGENTS.md)
-- [tests/AGENTS.md](tests/AGENTS.md)
+- [tests/TESTS.md](tests/TESTS.md)
 
 ## Rules
 
 Code is the source of truth. These docs lag. Read the code before acting on a doc. If you change behavior, update this file and the folder `AGENTS.md` that covers it.
 
 Python 3.11 venv. Run with `PYTHONPATH=. .venv/bin/python`. Use that interpreter, not system python.
+On Windows the interpreter is `.venv\Scripts\python.exe`. `requirements-test.txt` installs only
+the dependencies needed for the three offline suites, without MLX or recognition models.
 
 Workers subclass `multiprocessing.Process`. `__init__` runs in the parent. `setup()` and `run()` run in the child. Do not construct InspireFace, ONNX, Parakeet, asyncio loops, or aiohttp sessions in `__init__`.
 

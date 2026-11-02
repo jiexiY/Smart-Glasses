@@ -1,0 +1,5 @@
+# Offline helper, SQLite, and fake API-worker tests; no models or API calls.
+numpy>=2.3.5
+opencv-python-headless>=4.13.0.90
+aiohttp>=3.13.1
+python-dotenv>=1.2.1
