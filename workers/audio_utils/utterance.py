@@ -64,7 +64,7 @@ def begin_utterance(
 ) -> Utterance:
     ctx = model.transcribe_stream(context_size=(context_left, context_right))
     utterance = Utterance(
-        session_id=str(uuid.uuid4())[:8],
+        session_id=str(uuid.uuid4()),
         started_at=time.time(),
         samples=list(pre_speech),
         silence_count=0,

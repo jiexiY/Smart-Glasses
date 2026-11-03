@@ -1,10 +1,13 @@
 import io
 import os
 import sqlite3
+from contextlib import closing
+from typing import Any
 
 import numpy as np
 
 from core.config import IDENTITY_DB_PATH
+from database.names import initialize_names, name_key, observe_name
 
 
 def adapt_array(arr: np.ndarray) -> sqlite3.Binary:
@@ -92,6 +95,9 @@ class DatabaseManager:
             )
 
             conn.commit()
+
+        with closing(self._get_connection()) as conn, conn:
+            initialize_names(conn)
 
     def delete_user(self, user_id: str) -> None:
         """deleting user"""
@@ -226,11 +232,44 @@ class DatabaseManager:
         ]
 
     def get_user_ids_by_name(self, name: str) -> list[str]:
-        """Returns the UUID for a given name, or None if not found."""
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT id FROM users WHERE name = ?", (name,))
-            return [row[0] for row in cursor.fetchall()]
+        key = name_key(name)
+        with closing(self._get_connection()) as conn:
+            matches = {uid for uid, canonical in conn.execute("SELECT id, name FROM users")
+                       if name_key(canonical) == key}
+            matches.update(uid for (uid,) in conn.execute(
+                "SELECT user_id FROM identity_names WHERE name_key = ? AND status = 'confirmed'",
+                (key,),
+            ))
+            return sorted(matches)
+
+    def find_user_candidates(self, name: str) -> list[str]:
+        key = name_key(name)
+        if not key:
+            return []
+        with closing(self._get_connection()) as conn:
+            labels = list(conn.execute("SELECT id, name FROM users"))
+            labels.extend(conn.execute(
+                "SELECT user_id, name FROM identity_names WHERE status = 'confirmed'"
+            ))
+        # name parts suggest candidates, never establish identity
+        return sorted({uid for uid, label in labels
+                       if key == name_key(label) or key in name_key(label).split()})
+
+    def record_name_observation(self, **observation: Any) -> dict[str, Any]:
+        with closing(self._get_connection()) as conn, conn:
+            return observe_name(conn, **observation)
+
+    def get_identity_names(self, user_id: str) -> list[dict[str, Any]]:
+        with closing(self._get_connection()) as conn:
+            rows = conn.execute("""SELECT name, name_key, status, first_seen, last_seen
+                FROM identity_names WHERE user_id = ? ORDER BY name_key""", (user_id,))
+            return [dict(zip(("name", "name_key", "status", "first_seen", "last_seen"), row))
+                    for row in rows]
+
+    def reject_identity_name(self, user_id: str, name: str) -> None:
+        with closing(self._get_connection()) as conn, conn:
+            conn.execute("""UPDATE identity_names SET status = 'rejected'
+                WHERE user_id = ? AND name_key = ?""", (user_id, name_key(name)))
         
     def get_voice_embeddings_by_uid(self, user_id: str) -> list[np.ndarray]:
         """returns a list of voice embeddings for a given UUID"""

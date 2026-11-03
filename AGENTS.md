@@ -45,6 +45,8 @@ The dashboard (`frontend/server.py`, port `MONITORING_PORT`) drains `log_queue` 
 Identity registration resolves the observed face or self-introduction voice before using a spoken name.
 Known UUIDs keep their stored names. Unresolved single-track candidates retry for a bounded window;
 only a stable unknown track can create a user. Names alone never select an existing user.
+Known-person name learning now records separate pending/confirmed/rejected aliases. It defaults
+to shadow mode; see `docs/verified-name-learning.md` before enabling automatic confirmation.
 See `workers/coordinator_utils/identity.py` and `docs/identity-registration-testing.md`.
 
 ## Queues

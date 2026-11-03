@@ -1,13 +1,65 @@
 import gc
 import os
 import tempfile
+import sqlite3
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import numpy as np
 
 from database.database import DatabaseManager
 
 
+def test_identity_names() -> None:
+    with tempfile.TemporaryDirectory() as folder:
+        path = str(Path(folder) / "migration.db")
+        # upgrade an existing users table without replacing its records
+        with sqlite3.connect(path) as conn:
+            conn.execute("CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT NOT NULL)")
+            conn.execute("INSERT INTO users VALUES ('p1', 'Shrish Shah')")
+        conn.close()
+        db = DatabaseManager(path)
+        db.create_user("p2", "Another Person")
+        original = db.get_all_users()
+
+        def observe(event_id: str, at: float, **changes: object) -> dict:
+            data = dict(user_id="p1", name="Shri", event_id=event_id, observed_at=at,
+                        eligible=True, reason="test_evidence", evidence="Call me Shri", mode="auto")
+            data.update(changes)
+            return db.record_name_observation(**data)
+
+        assert observe("one", 10)["status"] == "pending"
+        assert db.get_user_ids_by_name("Shri") == []
+        assert observe("one", 10, user_id="p2")["status"] == "duplicate"
+        assert db.get_identity_names("p2") == []
+        assert observe("two", 12)["status"] == "confirmed"
+        assert db.get_user_ids_by_name(" SHRI ") == ["p1"]
+        assert db.find_user_candidates("shah") == ["p1"]
+        assert db.get_all_users() == original
+        db.reject_identity_name("p1", "Shri")
+        assert db.get_user_ids_by_name("Shri") == []
+        assert observe("three", 14)["status"] == "rejected"
+        assert db.get_identity_names("p1")[0]["status"] == "rejected"
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            statuses = list(executor.map(lambda _: observe("race", 20, name="Sam")["status"], range(2)))
+        assert sorted(statuses) == ["duplicate", "pending"]
+        assert observe("next", 22, name="Sam")["status"] == "confirmed"
+        assert observe("other-one", 24, name="Sam", user_id="p2")["status"] == "pending"
+        assert observe("other-two", 26, name="Sam", user_id="p2")["status"] == "confirmed"
+        assert db.get_user_ids_by_name("sam") == ["p1", "p2"]
+        reloaded = DatabaseManager(path)
+        assert reloaded.get_user_ids_by_name("sam") == ["p1", "p2"]
+        db.delete_user("p1")
+        assert db.get_user_ids_by_name("sam") == ["p2"]
+        with sqlite3.connect(path) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM name_observations WHERE user_id = 'p1'").fetchone()[0] == 0
+        conn.close()
+        gc.collect()
+
+
 def run_tests() -> None:
+    test_identity_names()
     print("--- Starting Database Tests ---")
 
     db_dir = tempfile.mkdtemp()

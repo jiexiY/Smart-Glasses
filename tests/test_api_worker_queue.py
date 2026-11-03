@@ -85,6 +85,7 @@ def test_process_command_happy_paths() -> None:
                 "text": "Hi, I am John",
                 "timestamp": t0,
                 "voice_embedding": [0.1, 0.2],
+                "name_source": {"event_id": "original-utterance", "text": "Call me John"},
             }
         )
 
@@ -94,6 +95,7 @@ def test_process_command_happy_paths() -> None:
         assert evt["args"]["name"] == "John"
         assert evt["timestamp"] == t0
         assert evt["voice_embedding"] == [0.1, 0.2]
+        assert evt["name_source"] == {"event_id": "original-utterance", "text": "Call me John"}
 
         worker._process_command(
             {

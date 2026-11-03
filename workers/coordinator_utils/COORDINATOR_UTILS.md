@@ -6,13 +6,16 @@ Event handling and voice/face association for the coordinator. `Coordinator.run`
 
 Speech, intent, and identity registration. `CoordinatorState` holds the db (`IdentityDirectory`), vision and audio caches, conversation history, pending voice registration, and the llm, vision, and audio command queues.
 
-`vision_result` caches faces. `speech` binds the speaker, then enqueues `PARSE_INTENT`. `intent` runs `REGISTER_IDENTITY`, `SPEAK`, or `VISION_CONTEXT`. `vlm_result` and `api_error` log.
+`vision_result` caches faces. `speech` keeps the audio worker's speaker result, then enqueues `PARSE_INTENT`. `intent` runs `REGISTER_IDENTITY`, `SPEAK`, or `VISION_CONTEXT`. `vlm_result` and `api_error` log.
 
 ### Speech
 
-An unknown voice (`config.DEFAULT_ID` plus an embedding) is cached. A pending registration inside the window (`max_delay`) binds that user and enqueues `REGISTER_VOICE`. Otherwise visual association may bind a known face and register the voice. Known users get chat history saved. Every utterance is appended and `PARSE_INTENT` is enqueued with recent history and the names currently in view.
+Unknown voices are cached but are no longer assigned to a visible person or the next speaker after a greeting. Known users get chat history saved. Each utterance snapshots original text, ID, timestamp, voice candidates and known faces before the asynchronous intent call. `name_source` travels through that call independently of LLM output.
 
 ### Identity
+
+Known-person intents carrying `name_source` first enter `name_learning.py`, described below.
+The remaining registration flow still handles unknown identities and legacy direct intents.
 
 `REGISTER_IDENTITY` resolves biometrics before names. A single recent recognized face, or a unique
 self-introduction voice match across all stored voices, reuses the existing UUID without renaming it.
@@ -38,14 +41,17 @@ face result; the coordinator does not implement a second face model.
 
 `registered_tracks` prevents another UUID while the owning worker is processing `REGISTER_FACE`.
 It follows continuously observed tracks and expires after a one-second tracking gap. New enrollment
-captures the selected embedding instead of selecting an unrelated unknown face later. The existing
-unknown-voice association and post-introduction voice capture remain separate behavior.
+captures the selected embedding instead of selecting an unrelated unknown face later. Unknown-voice association based only on visibility or greeting timing has been removed from the speech path.
 
 ### identity.py
 
 Pure identity resolution, embedding validation, and observation-window checks. Runtime state types
 are `PendingIdentity` and `RegisteredTrack`; `CoordinatorState` owns their dictionaries. Thresholds
-come from the existing audio and vision config. No schema migration or stored alias records.
+come from the existing audio and vision config.
+
+### name_learning.py
+
+Separate alias policy: a whole explicit self-naming utterance, unique stored voice match, and no conflicting visible known identities. Two distinct eligible utterances can confirm an alias in `auto` mode; default `shadow` records evidence without exposing aliases in lookup. Known-person name intents do not also enroll new biometric samples. `name_decisions` holds the latest 100 diagnostic decisions. Database methods store all candidate evidence. See `docs/verified-name-learning.md` for exact thresholds, limits, correction, and replay commands.
 
 ## association.py
 
@@ -59,3 +65,7 @@ Timing and geometry helpers. No queues or db.
 - `resolve_unknown_face`: unknown face with the highest attention score, `0.3 * area_scaled - 0.7 * distance_scaled`.
 - `resolve_unknown_voice`: first cached unknown voice in `[0, max_delay]` after the target time.
 - `trim_before`: drop cache entries older than the duration.
+
+The visibility-only and next-speaker association helpers are retained for legacy helper tests,
+but no longer authorize speech-handler voice enrollment. `pending_voice_registration` remains
+in the state shape for compatibility and is no longer populated or consumed by this handler.

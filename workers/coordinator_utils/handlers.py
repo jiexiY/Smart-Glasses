@@ -10,9 +10,6 @@ import numpy as np
 from core import config
 from workers.coordinator_utils.association import (
     PendingVoiceRegistration,
-    associate_voice,
-    pending_registration_hit,
-    resolve_unknown_voice,
     trim_before,
 )
 from workers.coordinator_utils.identity import (
@@ -24,6 +21,7 @@ from workers.coordinator_utils.identity import (
     stable_unknown_track,
     valid_embedding,
 )
+from workers.coordinator_utils.name_learning import capture_name_source, learn_name
 
 
 class QueueWriter(Protocol):
@@ -38,6 +36,7 @@ class IdentityDirectory(Protocol):
     def get_all_users(self) -> dict[str, str]: ...
     def get_all_voices(self) -> dict[str, list[np.ndarray]]: ...
     def create_user(self, user_id: str, name: str) -> None: ...
+    def record_name_observation(self, **observation: Any) -> dict[str, Any]: ...
 
 
 @dataclass
@@ -60,6 +59,8 @@ class CoordinatorState:
     request_number: int
     pending_identities: dict[int, PendingIdentity] = field(default_factory=dict)
     registered_tracks: dict[int, RegisteredTrack] = field(default_factory=dict)
+    name_learning_mode: str = field(default_factory=lambda: config.NAME_LEARNING_MODE)
+    name_decisions: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
 
 
 def handle_event(event: dict[str, Any], state: CoordinatorState) -> None:
@@ -94,15 +95,14 @@ def handle_speech(event: dict[str, Any], state: CoordinatorState) -> None:
     text = event.get("text", "")
     timestamp = event.get("time_start", time.time())
     voice_embedding = event.get("embedding")
+    # snapshot before any heuristic voice binding or asynchronous LLM work
+    name_source = capture_name_source(
+        event, state.db.get_all_users(), state.db.get_all_voices(), state.vision_cache
+    )
 
-    # unknown voice: stash it, then see if we were waiting on someone or a face lines up
+    # being visible or speaking next does not prove which person owns this voice
     if user_id == config.DEFAULT_ID and voice_embedding is not None:
         remember_unknown_voice(state, timestamp, voice_embedding)
-        user_id = (
-            bind_pending_voice(state, timestamp, voice_embedding)
-            or associate_unknown_voice(state, timestamp, voice_embedding)
-            or user_id
-        )
 
     # save the line and ask the llm what they just meant
     speaker_name = display_name(user_id, state.db.get_user_name)
@@ -113,6 +113,7 @@ def handle_speech(event: dict[str, Any], state: CoordinatorState) -> None:
             "text": intent_prompt(state, speaker_name),
             "timestamp": timestamp,
             "voice_embedding": voice_embedding,
+            "name_source": name_source,
         }
     )
     print(f"[Coordinator] {speaker_name}: {event['text']}")
@@ -125,11 +126,21 @@ def handle_vlm_result(event: dict[str, Any], state: CoordinatorState) -> None:
 def handle_intent(event: dict[str, Any], state: CoordinatorState) -> None:
     command = event.get("cmd", "CHAT")
     args = event.get("args", {})
+    if not isinstance(args, dict):
+        return
     timestamp = event.get("timestamp", time.time())
     voice_embedding = event.get("voice_embedding")
 
     # llm told us to add a person
     if command == "REGISTER_IDENTITY":
+        source = event.get("name_source")
+        if isinstance(source, dict):
+            decision = learn_name(state.db, args, source, time.time(), state.name_learning_mode)
+            state.name_decisions.append(decision)
+            print(f"[Coordinator] Name learning: {decision}")
+            # learning an alias must not also teach a face or voice from the same guess
+            if decision.get("user_id") is not None or decision.get("status") == "ignored":
+                return
         register_identity(state, args, timestamp, voice_embedding)
     elif command == "SPEAK":
         message = args.get("message", "")
@@ -166,37 +177,6 @@ def remember_unknown_voice(
     now = time.time()
     state.audio_cache.append((timestamp, voice_embedding))
     trim_before(state.audio_cache, now, state.audio_cache_duration)
-
-
-def bind_pending_voice(
-    state: CoordinatorState, timestamp: float, voice_embedding: np.ndarray
-) -> str | None:
-    target_id = pending_registration_hit(
-        state.pending_voice_registration, timestamp, state.max_delay
-    )
-    if target_id is None:
-        return None
-    print(
-        "[Coordinator] Binding unknown voice to pending identity: "
-        f"{state.db.get_user_name(target_id)} ({target_id})"
-    )
-    enqueue_register_voice(state.audio_commands, target_id, voice_embedding)
-    state.pending_voice_registration = None
-    return target_id
-
-
-def associate_unknown_voice(
-    state: CoordinatorState, timestamp: float, voice_embedding: np.ndarray
-) -> str | None:
-    target_id = associate_voice(state.vision_cache, timestamp)
-    if target_id is None:
-        return None
-    print(
-        "[Coordinator] Visually associated voice with "
-        f"{state.db.get_user_name(target_id)}."
-    )
-    enqueue_register_voice(state.audio_commands, target_id, voice_embedding)
-    return target_id
 
 
 def record_transcript(
@@ -378,20 +358,6 @@ def create_identity(
         and valid_embedding(voice_embedding)
     ):
         enqueue_register_voice(state.audio_commands, user_id, voice_embedding)
-    # wearer named someone else, so grab a recent unknown voice or wait for the next one
-    elif speaker_name == config.USER_NAME:
-        attempt_voice_registration(state, timestamp, user_id)
-
-
-def attempt_voice_registration(
-    state: CoordinatorState, timestamp: float, user_id: str
-) -> None:
-    # use an unknown voice from just after the intro, or set a trap for the next one
-    voice = resolve_unknown_voice(state.audio_cache, timestamp, state.max_delay)
-    if voice is not None:
-        enqueue_register_voice(state.audio_commands, user_id, voice)
-        return
-    state.pending_voice_registration = {"user_id": user_id, "timestamp": timestamp}
 
 
 def enqueue_register_voice(queue: QueueWriter, user_id: str, embedding: np.ndarray) -> None:

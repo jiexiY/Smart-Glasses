@@ -105,6 +105,12 @@ Commands sent to `APIWorker`:
   - Payload: `{"cmd":"ANALYZE_MEMORY","conversation_history":str,"known_facts":str,"subject":str}`
   - Result event: `memory_result`
 
+### Name-learning evidence
+
+`PARSE_INTENT` commands and returned intents carry `name_source`: original utterance `event_id`, `text`, `timestamp`, `voice_user_id`, `voice_score`, `voice_margin`, and `face_user_ids`. The coordinator computes this snapshot from stored profiles when speech arrives. The API helper copies it from the command, not the LLM response. Voice scores are similarities, not calibrated probabilities. Missing/stale source metadata cannot teach an alias.
+
+Speech `id` is a full utterance UUID and `time_start` is its start timestamp. Known-person name learning uses these to deduplicate events. See `docs/verified-name-learning.md`.
+
 ### 7. API Error
 
 When there is an error with any api call

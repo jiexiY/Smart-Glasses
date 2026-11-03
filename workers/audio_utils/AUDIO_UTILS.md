@@ -16,7 +16,7 @@ Each tick drains voice commands, then `next_audio` (0.5s; other queue errors bec
 
 ## utterance.py
 
-`Utterance`: 8-char id, `started_at`, samples, `silence_count`, transcriber, stream context. `begin_utterance` opens `transcribe_stream((CONTEXT_LEFT, CONTEXT_RIGHT))`, copies `pre_speech`, then clears it. `extend_utterance` zeroes the silence count. `finish_utterance` concatenates, optionally writes `api/simulator_resources/debug_audios/` (`DEBUG_AUDIO`), `add_audio`s an MLX array, embeds `sentence.reshape(1, -1)`, and calls `identify_speaker`. `speech_event` is `{type: speech, text, id, time_start, timestamp, final: True, embedding, user_id}`; blank text is `None`.
+`Utterance`: full UUID id (used for persistent observation deduplication), `started_at`, samples, `silence_count`, transcriber, stream context. `begin_utterance` opens `transcribe_stream((CONTEXT_LEFT, CONTEXT_RIGHT))`, copies `pre_speech`, then clears it. `extend_utterance` zeroes the silence count. `finish_utterance` concatenates, optionally writes `api/simulator_resources/debug_audios/` (`DEBUG_AUDIO`), `add_audio`s an MLX array, embeds `sentence.reshape(1, -1)`, and calls `identify_speaker`. `speech_event` is `{type: speech, text, id, time_start, timestamp, final: True, embedding, user_id}`; blank text is `None`.
 
 `apply_voice_commands` drains `CommandQueue` and accepts only `{cmd: REGISTER_VOICE, user_id, embedding}`. `register_voice` calls `VoiceStore.save_voice_embedding` and `merge_speaker` into `known_speakers`. Other commands and exceptions are logged and skipped.
 

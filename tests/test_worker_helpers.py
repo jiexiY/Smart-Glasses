@@ -286,10 +286,10 @@ def test_speech_handler() -> None:
         },
         state,
     )
-    assert state.pending_voice_registration is None
-    assert audio.items[-1]["cmd"] == "REGISTER_VOICE"
-    assert audio.items[-1]["user_id"] == "ada"
-    assert directory.history[-1] == ("ada", "Ada: it's me")
+    assert state.pending_voice_registration == {"user_id": "ada", "timestamp": 10.0}
+    assert audio.items == []
+    assert directory.history == [("ada", "Ada: hello")]
+    assert state.conversation_history[-1] == "Unknown: it's me"
 
     state.pending_voice_registration = {"user_id": "ada", "timestamp": 10.0}
     handle_event(
@@ -642,7 +642,48 @@ def test_audio_and_vision_helpers() -> None:
     assert active[3]["score"] == 1.0
 
 
+def test_name_learning_replays() -> None:
+    from scripts.replay_name_learning import replay
+    cases = Path(__file__).parent / "fixtures" / "name_learning.json"
+    for mode in ("auto", "shadow"):
+        report = replay(cases, mode)
+        assert report["cases"] == report["passed"], report
+        assert report["wrong_aliases"] == report["missed_aliases"] == 0
+        assert report["new_user_records"] == 0
+
+
+def test_name_source_and_policy() -> None:
+    from workers.coordinator_utils.name_learning import capture_name_source, explicit_self_name
+    voice = np.array([1.0, 0.0])
+    users = {"p1": "Ada", "p2": "Bob"}
+    event = {"id": "e1", "time_start": 10.0, "text": "Call me AJ", "embedding": voice}
+    ambiguous = capture_name_source(event, users, {"p1": [voice], "p2": [voice]}, [])
+    assert ambiguous["voice_user_id"] is None
+    assert explicit_self_name("Hi, my name is AJ.", "AJ")
+    assert explicit_self_name("I'm O’Neil", "O'Neil")
+    for text in ("Alex said call me AJ", "Don't call me AJ", "If I said call me AJ", '"Call me AJ"'):
+        assert not explicit_self_name(text, "AJ")
+    source = capture_name_source(event, users, {"p1": [voice]}, [])
+    result = intent_event({"text": "prompt", "name_source": source}, {
+        "cmd": "REGISTER_IDENTITY", "name_source": {"voice_user_id": "p2"},
+    }, 10.1)
+    assert result["name_source"]["voice_user_id"] == "p1"
+    source["voice_user_id"] = "p2"
+    assert result["name_source"]["voice_user_id"] == "p1"
+
+    directory, _, _, audio, state = blank_state()
+    directory.names["p1"] = "Ada"
+    state.vision_cache.append((10.0, [identity_face("p1")]))
+    handle_event({"type": "speech", "id": "off-camera", "time_start": 10.0,
+                  "text": "Call me AJ", "embedding": voice}, state)
+    assert audio.items == [], "A visible listener must not acquire the speaker's voice"
+    handle_event({"type": "intent", "cmd": "REGISTER_IDENTITY", "args": ["invalid"]}, state)
+    assert directory.created == [] and audio.items == []
+
+
 def run_tests() -> None:
+    test_name_learning_replays()
+    test_name_source_and_policy()
     test_speaker_matching()
     test_track_updates()
     test_best_identity()

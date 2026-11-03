@@ -10,7 +10,7 @@ The HTTP client lives in `api/openai_client.py`. `LLMClient` on the worker is th
 
 `command_name` uppercases `cmd`. A missing cmd is `""`.
 
-`intent_event` shapes a `PARSE_INTENT` result into an `intent` event. Return `None` when `text` is empty or `result` is `None`. Keep the command `timestamp` (fallback `now`) and pass through `voice_embedding`. Default `cmd` is `CHAT` and default `args` is `{}`.
+`intent_event` shapes a `PARSE_INTENT` result into an `intent` event. Return `None` when `text` is empty or `result` is `None`. Keep the command `timestamp` (fallback `now`) and pass through `voice_embedding`. Deep-copy `name_source` from the command, never from LLM output. This preserves the original naming evidence and voice-match snapshot. Default `cmd` is `CHAT` and default `args` is `{}`.
 
 `memory_event` shapes an `ANALYZE_MEMORY` result into a `memory_result` event. Return `None` when `conversation_history` is empty. `subject` falls back to `default_name` (`DEFAULT_NAME` from the worker). `facts` is the raw client result. Timestamp is `now`.
 

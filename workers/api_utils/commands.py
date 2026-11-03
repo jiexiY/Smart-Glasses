@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any
 
 
@@ -16,6 +17,7 @@ def intent_event(
         "args": result.get("args", {}),
         "timestamp": command.get("timestamp", now),
         "voice_embedding": command.get("voice_embedding"),
+        "name_source": deepcopy(command.get("name_source")),
     }
 
 

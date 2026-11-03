@@ -33,3 +33,7 @@ Do not run unless asked. Each needs `OPENAI_API_KEY`.
 - `tests/test_openai_tool.py` — `OpenAIClient` memory, video frames from `api/simulator_resources/LongVideo.mp4`, and `parse_intent` (self-intro and third party).
 - `tests/test_openai_memory.py` — `analyze_memory` extraction and dedup against known facts.
 - `tests/test_api_worker_live.py` — real `APIWorker` process; PARSE_INTENT for "Hi, my name is John."; expects `intent` or `api_error`.
+
+## Name learning
+
+The helper suite runs all 16 labeled synthetic replay cases in both shadow and auto modes. The database suite checks additive migration, concurrent event deduplication, shared aliases, rejection, persistence and cascade deletion. The fake API worker verifies original name-source metadata survives the intent call. This is control-flow validation, not recognition-accuracy evaluation. See `docs/verified-name-learning.md`.

@@ -23,6 +23,10 @@ This proves the coordinator's missing-name branch can duplicate an identity even
 successful face-recognition result. It is an offline control-flow reproduction, not a live camera
 or speech-recognition benchmark.
 
+Follow-up: [`verified-name-learning.md`](verified-name-learning.md) documents alias learning on
+`feat/verified-name-learning`, including changes to unknown-voice binding. The section below describes
+the earlier registration fix.
+
 ## Change
 
 - Resolve the target's face / self-introduction voice independently of the spoken name.

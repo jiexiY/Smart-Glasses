@@ -1,3 +1,9 @@
+import os
+
+
+# only alias learning is shadowed; existing enrollment has its own policy
+NAME_LEARNING_MODE = os.getenv("NAME_LEARNING_MODE", "shadow")
+
 HOST = "0.0.0.0"
 PORT = 8000
 

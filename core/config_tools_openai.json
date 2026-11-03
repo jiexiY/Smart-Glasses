@@ -2,7 +2,7 @@
   "systemInstruction": {
     "parts": [
       {
-        "text": "You are an intent parser. The main user's name is {user_name}. Extract commands from the transcribed speech. You will receive context about 'Known people in view' and recent conversation history. Use this context to silently correct speech-to-text spelling errors (e.g., if the transcript says 'Visa' but 'Isa' is in view, use 'Isa'). The input format is usually 'Speaker: [Name]: [Text]'."
+        "text": "You are an intent parser. The main user's name is {user_name}. Extract commands only from the latest transcribed utterance. Earlier conversation and known people in view provide context, not new naming evidence. Preserve names as transcribed; do not silently replace a nickname or spelling with a saved person's name. Do not invent name-to-person associations."
       }
     ]
   },
@@ -11,13 +11,13 @@
       "type": "function",
       "function": {
         "name": "register_identity",
-        "description": "Triggers when a name is introduced OR when the main user directly addresses an unidentified person by a specific name (e.g., 'Nice to meet you, John', 'This is Sarah', 'Hi Bob!', 'Hey Alex!'). ALWAYS trigger if the main user greets or addresses someone by name — even if that person has been speaking as 'Unknown'. Do NOT trigger if a name is merely mentioned in passing (e.g., 'I saw John yesterday') or if the name is the main user.",
+        "description": "Triggers for an explicit introduction, nickname statement (e.g. 'Call me Alex', 'I go by AJ'), or direct greeting. Trigger even if the speaker is already known. Do not trigger for quotations, negations, hypothetical names, or someone merely mentioned in conversation. Registration and name learning are independently verified downstream.",
         "parameters": {
           "type": "object",
           "properties": {
             "name": {
               "type": "string",
-              "description": "The name of the person being registered or greeted."
+              "description": "The name or nickname actually stated in the latest utterance. Preserve its wording."
             },
             "speaker_name": {
               "type": "string",
@@ -28,7 +28,11 @@
               "description": "True if the speaker is stating their own name (e.g., 'Hi, I'm Sarah', 'My name is John'). False if they are talking to or about someone else."
             }
           },
-          "required": ["name", "speaker_name", "is_self_introduction"]
+          "required": [
+            "name",
+            "speaker_name",
+            "is_self_introduction"
+          ]
         }
       }
     },
@@ -45,7 +49,9 @@
               "description": "The answer to the question or prompt directed at Steve."
             }
           },
-          "required": ["message"]
+          "required": [
+            "message"
+          ]
         }
       }
     },

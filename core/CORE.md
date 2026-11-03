@@ -34,6 +34,8 @@ OpenAI is the LLM. Gemini config is gone. `OPENAI_API_KEY`, `OPENAI_API_LINK`, `
 
 `install_log_interceptor(log_queue, source_tag)` runs inside the target process. It keeps the real `print` and `put_nowait`s `{source, text, ts}` onto `log_queue`. A full queue is dropped.
 
+`NAME_LEARNING_MODE` reads `shadow` (default) or `auto` from the environment. It controls alias confirmation only. Pending/audit records are saved in both modes; invalid modes reject name-learning intents.
+
 ## JSON
 
-`config_tools_openai.json` declares `register_identity`, `speak`, and `vision_context`. `config_prompts.json` holds `memory_prompt_template`. `config_tools.json` is unused Gemini `functionDeclarations` schema.
+`config_tools_openai.json` declares `register_identity`, `speak`, and `vision_context`. Names in registration intents must remain as transcribed. Nickname statements from known people can trigger registration; downstream policy verifies ownership. `config_prompts.json` holds `memory_prompt_template`. `config_tools.json` is unused Gemini `functionDeclarations` schema.
