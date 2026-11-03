@@ -51,7 +51,7 @@ come from the existing audio and vision config.
 
 ### name_learning.py
 
-Separate alias policy: a whole explicit self-naming utterance, unique stored voice match, and no conflicting visible known identities. Two distinct eligible utterances can confirm an alias in `auto` mode; default `shadow` records evidence without exposing aliases in lookup. Known-person name intents do not also enroll new biometric samples. `name_decisions` holds the latest 100 diagnostic decisions. Database methods store all candidate evidence. See `docs/verified-name-learning.md` for exact thresholds, limits, correction, and replay commands.
+Separate alias policy (`self-name-v2`): a whole explicit self-naming utterance, unique stored voice match, and exactly one recent face whose finite score exceeds the existing face threshold and whose UUID agrees with the voice. Unknown bystanders count toward the face count. Missing, weak, stale, multiple, or conflicting faces leave a known speaker's candidate pending. Two distinct eligible utterances from the same policy can confirm an alias in `auto` mode; default `shadow` records evidence without exposing aliases in lookup. Known-person name intents do not also enroll new biometric samples. `name_decisions` holds the latest 100 diagnostic decisions. Database methods store all candidate evidence. See `docs/verified-name-learning.md` for thresholds and limits, and `docs/name-learning-test-first.md` for failing-then-passing regressions.
 
 ## association.py
 

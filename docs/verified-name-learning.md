@@ -13,14 +13,17 @@ This is an evaluation implementation, not a production accuracy claim.
    explicit self-naming utterance, such as `My name is Shri`, `Call me Shri`, or `I go by Shri`.
    Negations, quotations, ordinary mentions, and introductions by another person do not qualify.
    Names are preserved as transcribed rather than silently replaced with a saved canonical name.
-3. Automatic alias eligibility requires a unique saved-voice match. A single recognized face
-   without a verified speaker only supplies a pending candidate. Conflicting known faces or
-   multiple different known faces block eligibility. A known speaker can learn an alias without
-   a visible face; this never binds an unseen or unknown face to that speaker.
+3. Automatic alias eligibility requires a unique saved-voice match **and exactly one recent face**
+   with the same UUID and a finite score above the existing face threshold (currently 0.5).
+   The selected frame must be within one second of the utterance start. Unknown bystanders also
+   count as faces. Voice-only, face-only, weak/stale face results, multiple faces, and disagreements
+   stay pending when there is a candidate identity. This conservative rule reduces automatic
+   coverage; it does not establish that the visible person is speaking.
 4. A transaction records the observation and keeps the alias pending until two eligible utterances
    with distinct IDs and timestamps support the same person/name within five minutes, at least
    one second apart. Replayed events cannot vote twice, even across process restarts or concurrent
-   calls. One utterance cannot vote for two names or people.
+   calls. One utterance cannot vote for two names or people. Both votes must use the same policy
+   version (`self-name-v2`); old voice-only evidence cannot count toward this stricter rule.
 5. In `auto` mode, an eligible candidate becomes a confirmed alias. The canonical name, UUID,
    existing biometric records and conversation history stay attached to the same person.
 
@@ -46,6 +49,8 @@ The additive migration creates `identity_names` and `name_observations` without 
 Aliases are unique per `(user_id, normalized_name)`, not globally: two people can both be called Sam.
 Evidence includes the source snapshot and policy version. Raw embeddings are not copied into the
 name audit. Transactions serialize confirmation, and event IDs deduplicate observations.
+Already confirmed aliases are preserved on upgrade; review previously confirmed names separately
+if the older automatic mode was used. This change does not silently revoke them.
 
 - `get_user_ids_by_name`: canonical names and confirmed aliases, normalized for case/spacing.
 - `find_user_candidates`: full names or individual space-separated name parts. Results are only
@@ -80,7 +85,8 @@ $env:PYTHONIOENCODING = 'utf-8'
 .\.venv\Scripts\python.exe -m scripts.replay_name_learning --mode auto
 ```
 
-`tests/fixtures/name_learning.json` contains 16 hand-labeled synthetic scenarios. Replay runs the
+`tests/fixtures/name_learning.json` contains 16 hand-labeled synthetic scenarios, and
+`tests/fixtures/name_learning_agreement.json` adds 10 agreement regressions. Replay runs the
 speech handler, source snapshot, fake intent output, coordinator and actual temporary SQLite DB.
 It covers nicknames, shared names, duplicates, overlapping timestamps, stale results, expired
 evidence, off-camera/unknown speech, conflicting faces, greetings, mentions, negations and quotes.
@@ -92,9 +98,11 @@ These results validate control flow with fixed fake model outputs. They do not m
 voice, speech transcription, LLM intent accuracy, automatic coverage in real conversations, latency,
 or battery use. No model, camera, OpenAI call or real identity database is used in these runs.
 
-Validation on November 3, 2026: all three offline suites passed. All 16 replay scenarios passed
-in each mode (32 scenario runs); expected alias decisions matched, no unexpected user records
+Validation on November 3, 2026: all three offline suites passed. All 26 replay scenarios passed
+in each mode (52 scenario runs); expected alias decisions matched, no unexpected user records
 were created, and existing names and biometric profiles were unchanged in these synthetic cases.
+The new checks were run and failed before changing the implementation; see
+[`name-learning-test-first.md`](name-learning-test-first.md) for before/after evidence.
 
 ## Required before a production rollout
 
@@ -113,6 +121,9 @@ were created, and existing names and biometric profiles were unchanged in these 
   callers without `name_source` still use the earlier registration flow, without alias learning.
 - Validate the trustworthiness of enrolled voice profiles; two repeated false voice matches are
   still wrong. Temporal repetition is not a mathematical guarantee of independent evidence.
+  The vision worker also caches recognized identities; two utterances can reuse one model result.
+  Frame freshness here uses coordinator receipt time, not the device capture clock. Calibrating
+  thresholds, independent observations and actual speaker-to-face attribution remain separate work.
 - Add retention controls, a correction UI, model/profile versioning, and staged live evaluation.
   Pending observations are retained for inspection; only the last five minutes qualify for a new
   confirmation. No automatic cleanup or monitoring service is installed in this increment.

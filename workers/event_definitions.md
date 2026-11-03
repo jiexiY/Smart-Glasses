@@ -109,6 +109,12 @@ Commands sent to `APIWorker`:
 
 `PARSE_INTENT` commands and returned intents carry `name_source`: original utterance `event_id`, `text`, `timestamp`, `voice_user_id`, `voice_score`, `voice_margin`, and `face_user_ids`. The coordinator computes this snapshot from stored profiles when speech arrives. The API helper copies it from the command, not the LLM response. Voice scores are similarities, not calibrated probabilities. Missing/stale source metadata cannot teach an alias.
 
+The snapshot also includes `face_count` (all faces, including unknowns), `face_timestamp` (the selected
+coordinator-cache timestamp, or null), `face_score` (finite score for a sole face, or null), and
+`face_user_id` (sole known face above the matching threshold, or null). A snapshot without these
+verified face fields cannot authorize a new alias. Cache time is not a device capture timestamp;
+this change does not add active-speaker detection or independent face-model observations.
+
 Speech `id` is a full utterance UUID and `time_start` is its start timestamp. Known-person name learning uses these to deduplicate events. See `docs/verified-name-learning.md`.
 
 ### 7. API Error

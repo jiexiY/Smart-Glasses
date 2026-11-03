@@ -6,7 +6,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from core import config
+from core import config, config_vision
 from database.names import name_key
 from workers.coordinator_utils.association import closest_frame, cosine_sim
 from workers.coordinator_utils.identity import MAX_FRAME_AGE, valid_embedding
@@ -16,6 +16,7 @@ from workers.coordinator_utils.identity import MAX_FRAME_AGE, valid_embedding
 NAME_VOICE_THRESHOLD = 0.70
 NAME_VOICE_MARGIN = 0.15
 MAX_NAME_EVENT_AGE = 60.0
+NAME_POLICY = "self-name-v2"
 
 
 class NameDirectory(Protocol):
@@ -45,14 +46,26 @@ def capture_name_source(
     voice_id = (scores[0][1] if scores and best >= NAME_VOICE_THRESHOLD
                 and margin >= NAME_VOICE_MARGIN else None)
     timestamp = event.get("time_start")
-    frame = closest_frame(vision_cache, timestamp) if isinstance(timestamp, (float, int)) else None
-    faces = frame[1] if frame and abs(frame[0] - timestamp) <= MAX_FRAME_AGE else []
+    frame = (closest_frame(vision_cache, timestamp)
+             if isinstance(timestamp, (float, int)) and math.isfinite(timestamp) else None)
+    if frame is not None and not abs(frame[0] - timestamp) <= MAX_FRAME_AGE:
+        frame = None
+    faces = frame[1] if frame else []
     face_ids = sorted({face["user_id"] for face in faces
                        if face.get("user_id") in users})
+    face = faces[0] if len(faces) == 1 else {}
+    score = face.get("score")
+    face_score = (float(score) if isinstance(score, (int, float, np.floating))
+                  and not isinstance(score, bool) and math.isfinite(score) else None)
+    face_id = (face.get("user_id") if face.get("user_id") in users
+               and face_score is not None
+               and face_score > config_vision.CONFIDENCE_THRESHOLD_MATCHING else None)
     return {
         "event_id": event.get("id", ""), "text": event.get("text", ""),
         "timestamp": timestamp, "voice_user_id": voice_id,
         "voice_score": best, "voice_margin": margin, "face_user_ids": face_ids,
+        "face_user_id": face_id, "face_count": len(faces), "face_score": face_score,
+        "face_timestamp": frame[0] if frame else None,
     }
 
 
@@ -97,10 +110,14 @@ def learn_name(
         reason, eligible = "name_referent_unverified", False
     elif voice_id is None:
         reason, eligible = "speaker_unverified", False
-    elif face_ids and face_ids != {voice_id}:
-        reason, eligible = "face_voice_disagree_or_multiple_faces", False
+    elif source.get("face_count", 0) > 1:
+        reason, eligible = "multiple_visible_faces", False
+    elif source.get("face_user_id") is None:
+        reason, eligible = "face_unverified", False
+    elif source["face_user_id"] != voice_id:
+        reason, eligible = "face_voice_disagree", False
     return directory.record_name_observation(
         user_id=user_id, name=name, event_id=event_id, observed_at=timestamp,
         eligible=eligible, reason=reason,
-        evidence=json.dumps({"policy": "self-name-v1", "source": source}, sort_keys=True), mode=mode,
+        evidence=json.dumps({"policy": NAME_POLICY, "source": source}, sort_keys=True), mode=mode,
     )

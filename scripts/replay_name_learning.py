@@ -39,9 +39,10 @@ def replay_case(case: dict[str, Any], mode: str) -> dict[str, Any]:
         with redirect_stdout(StringIO()):
             for observation in case["observations"]:
                 timestamp = observation["at"]
-                faces = [{"user_id": uid, "track_id": index, "score": 0.95, "emb": None}
-                         for index, uid in enumerate(observation.get("faces", []))]
-                state.vision_cache.append((timestamp, faces))
+                faces = [({"user_id": face, "track_id": index, "score": 0.95, "emb": None}
+                          if isinstance(face, str) else dict(face, track_id=index, emb=None))
+                         for index, face in enumerate(observation.get("faces", []))]
+                state.vision_cache.append((observation.get("vision_at", timestamp), faces))
                 now = observation.get("received_at", timestamp + 0.1)
                 with patch("workers.coordinator_utils.handlers.time.time", return_value=now):
                     handle_event({
@@ -85,6 +86,7 @@ def replay_case(case: dict[str, Any], mode: str) -> dict[str, Any]:
             "new_user_records": added_users, "saved_aliases": len(saved),
             "observations": len(case["observations"]),
             "profiles_unchanged": profiles_unchanged,
+            "expected_decisions": expected_statuses,
             "decisions": list(state.name_decisions),
         }
         gc.collect()

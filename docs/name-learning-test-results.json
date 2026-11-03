@@ -1,0 +1,326 @@
+{
+  "date": "2026-11-03",
+  "scope": "Synthetic event replay with fixed recognition and intent outputs; not a model accuracy benchmark.",
+  "before_commit": "0dcd4049319a3cc7f79865c850a1931f5a3718d7",
+  "before_note": "New fixtures and test harness were run against unchanged production code before the fix.",
+  "before_agreement_auto": {
+    "cases": 10,
+    "passed": 0,
+    "unexpected_alias_confirmations": 10,
+    "decisions": {
+      "no_visible_face_stays_pending": [
+        "pending",
+        "confirmed"
+      ],
+      "unknown_face_stays_pending": [
+        "pending",
+        "confirmed"
+      ],
+      "unknown_bystander_stays_pending": [
+        "pending",
+        "confirmed"
+      ],
+      "two_tracks_same_id_stay_pending": [
+        "pending",
+        "confirmed"
+      ],
+      "low_face_score_stays_pending": [
+        "pending",
+        "confirmed"
+      ],
+      "face_score_at_threshold_stays_pending": [
+        "pending",
+        "confirmed"
+      ],
+      "missing_face_score_stays_pending": [
+        "pending",
+        "confirmed"
+      ],
+      "null_face_score_stays_pending": [
+        "pending",
+        "confirmed"
+      ],
+      "stale_face_stays_pending": [
+        "pending",
+        "confirmed"
+      ],
+      "one_bad_one_good_stays_pending": [
+        "pending",
+        "confirmed"
+      ]
+    }
+  },
+  "policy_upgrade_regression": {
+    "before": "failed: old-policy vote confirmed a new-policy candidate",
+    "after": "passed: requires two same-policy eligible observations"
+  },
+  "after_replays": [
+    {
+      "fixture": "name_learning.json",
+      "mode": "auto",
+      "cases": 16,
+      "passed": 16,
+      "unexpected_alias_confirmations": 0,
+      "missed_expected_aliases": 0,
+      "new_user_records": 0,
+      "profiles_unchanged": true,
+      "decisions": {
+        "nickname_confirmed": [
+          "pending",
+          "confirmed"
+        ],
+        "one_utterance_pending": [
+          "pending"
+        ],
+        "replayed_event_pending": [
+          "pending",
+          "duplicate"
+        ],
+        "same_time_new_id_pending": [
+          "pending",
+          "pending"
+        ],
+        "third_person_mention": [
+          "pending",
+          "pending"
+        ],
+        "quoted_name": [
+          "pending",
+          "pending"
+        ],
+        "negated_name": [
+          "pending",
+          "pending"
+        ],
+        "face_voice_conflict": [
+          "pending",
+          "pending"
+        ],
+        "multiple_faces": [
+          "pending",
+          "pending"
+        ],
+        "unverified_voice": [
+          "pending",
+          "pending"
+        ],
+        "voice_only_known_speaker": [
+          "pending",
+          "pending"
+        ],
+        "shared_nickname_different_people": [
+          "pending",
+          "confirmed",
+          "pending",
+          "confirmed"
+        ],
+        "stale_result": [
+          "ignored",
+          "ignored"
+        ],
+        "greeting_does_not_teach_name": [
+          "pending",
+          "pending"
+        ],
+        "name_not_in_utterance": [
+          "pending",
+          "pending"
+        ],
+        "evidence_window_expired": [
+          "pending",
+          "pending"
+        ]
+      },
+      "fixture_sha256_lf": "ad7226feaa8c3f181acb3d8dcdde79805ca89c140521d7b150beeaf4762ef089"
+    },
+    {
+      "fixture": "name_learning.json",
+      "mode": "shadow",
+      "cases": 16,
+      "passed": 16,
+      "unexpected_alias_confirmations": 0,
+      "missed_expected_aliases": 0,
+      "new_user_records": 0,
+      "profiles_unchanged": true,
+      "decisions": {
+        "nickname_confirmed": [
+          "pending",
+          "would_confirm"
+        ],
+        "one_utterance_pending": [
+          "pending"
+        ],
+        "replayed_event_pending": [
+          "pending",
+          "duplicate"
+        ],
+        "same_time_new_id_pending": [
+          "pending",
+          "pending"
+        ],
+        "third_person_mention": [
+          "pending",
+          "pending"
+        ],
+        "quoted_name": [
+          "pending",
+          "pending"
+        ],
+        "negated_name": [
+          "pending",
+          "pending"
+        ],
+        "face_voice_conflict": [
+          "pending",
+          "pending"
+        ],
+        "multiple_faces": [
+          "pending",
+          "pending"
+        ],
+        "unverified_voice": [
+          "pending",
+          "pending"
+        ],
+        "voice_only_known_speaker": [
+          "pending",
+          "pending"
+        ],
+        "shared_nickname_different_people": [
+          "pending",
+          "would_confirm",
+          "pending",
+          "would_confirm"
+        ],
+        "stale_result": [
+          "ignored",
+          "ignored"
+        ],
+        "greeting_does_not_teach_name": [
+          "pending",
+          "pending"
+        ],
+        "name_not_in_utterance": [
+          "pending",
+          "pending"
+        ],
+        "evidence_window_expired": [
+          "pending",
+          "pending"
+        ]
+      },
+      "fixture_sha256_lf": "ad7226feaa8c3f181acb3d8dcdde79805ca89c140521d7b150beeaf4762ef089"
+    },
+    {
+      "fixture": "name_learning_agreement.json",
+      "mode": "auto",
+      "cases": 10,
+      "passed": 10,
+      "unexpected_alias_confirmations": 0,
+      "missed_expected_aliases": 0,
+      "new_user_records": 0,
+      "profiles_unchanged": true,
+      "decisions": {
+        "no_visible_face_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "unknown_face_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "unknown_bystander_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "two_tracks_same_id_stay_pending": [
+          "pending",
+          "pending"
+        ],
+        "low_face_score_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "face_score_at_threshold_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "missing_face_score_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "null_face_score_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "stale_face_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "one_bad_one_good_stays_pending": [
+          "pending",
+          "pending"
+        ]
+      },
+      "fixture_sha256_lf": "8a9b92b89a1a8331afabcd531be9b5b84dfa0d4882d757cd2d55268c003015da"
+    },
+    {
+      "fixture": "name_learning_agreement.json",
+      "mode": "shadow",
+      "cases": 10,
+      "passed": 10,
+      "unexpected_alias_confirmations": 0,
+      "missed_expected_aliases": 0,
+      "new_user_records": 0,
+      "profiles_unchanged": true,
+      "decisions": {
+        "no_visible_face_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "unknown_face_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "unknown_bystander_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "two_tracks_same_id_stay_pending": [
+          "pending",
+          "pending"
+        ],
+        "low_face_score_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "face_score_at_threshold_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "missing_face_score_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "null_face_score_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "stale_face_stays_pending": [
+          "pending",
+          "pending"
+        ],
+        "one_bad_one_good_stays_pending": [
+          "pending",
+          "pending"
+        ]
+      },
+      "fixture_sha256_lf": "8a9b92b89a1a8331afabcd531be9b5b84dfa0d4882d757cd2d55268c003015da"
+    }
+  ],
+  "offline_suites": {
+    "tests/test_worker_helpers.py": "passed",
+    "tests/test_database.py": "passed",
+    "tests/test_api_worker_queue.py": "passed outside Windows sandbox; sandbox attempt stalled and was stopped"
+  }
+}

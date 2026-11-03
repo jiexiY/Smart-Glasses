@@ -1,3 +1,4 @@
+import json
 import math
 import sqlite3
 import unicodedata
@@ -6,6 +7,15 @@ from typing import Any
 
 def name_key(name: str) -> str:
     return " ".join(unicodedata.normalize("NFKC", name).casefold().split())
+
+
+def evidence_policy(evidence: str) -> str | None:
+    try:
+        parsed = json.loads(evidence)
+    except (ValueError, TypeError):
+        return None
+    policy = parsed.get("policy") if isinstance(parsed, dict) else None
+    return policy if isinstance(policy, str) else None
 
 
 def initialize_names(conn: sqlite3.Connection) -> None:
@@ -65,12 +75,15 @@ def observe_name(
     if status != "pending":
         return {"status": status, "user_id": user_id, "name_key": key}
     # require two distinct utterance times in a bounded evidence window
-    count, first, last = conn.execute("""
-        SELECT COUNT(DISTINCT observed_at), MIN(observed_at), MAX(observed_at)
+    observations = conn.execute("""
+        SELECT observed_at, evidence
         FROM name_observations WHERE user_id = ? AND name_key = ? AND eligible = 1
             AND observed_at BETWEEN ? AND ?
-    """, (user_id, key, last_seen - 300.0, last_seen)).fetchone()
-    if eligible and count >= 2 and last - first >= 1.0:
+    """, (user_id, key, last_seen - 300.0, last_seen)).fetchall()
+    # older, weaker rules cannot contribute votes to the current policy
+    policy = evidence_policy(evidence)
+    times = {at for at, saved_evidence in observations if evidence_policy(saved_evidence) == policy}
+    if eligible and len(times) >= 2 and max(times) - min(times) >= 1.0:
         if mode == "auto":
             conn.execute("""UPDATE identity_names SET status = 'confirmed'
                 WHERE user_id = ? AND name_key = ?""", (user_id, key))

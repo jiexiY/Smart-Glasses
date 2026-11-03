@@ -47,6 +47,9 @@ Known UUIDs keep their stored names. Unresolved single-track candidates retry fo
 only a stable unknown track can create a user. Names alone never select an existing user.
 Known-person name learning now records separate pending/confirmed/rejected aliases. It defaults
 to shadow mode; see `docs/verified-name-learning.md` before enabling automatic confirmation.
+Automatic aliases require one recent, sufficiently scored face agreeing with a unique voice match
+on two explicit introductions. Missing/unclear/conflicting evidence stays pending; older policy
+evidence cannot contribute votes. Test-first evidence is in `docs/name-learning-test-first.md`.
 See `workers/coordinator_utils/identity.py` and `docs/identity-registration-testing.md`.
 
 ## Queues

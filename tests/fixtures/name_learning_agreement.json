@@ -1,0 +1,564 @@
+[
+  {
+    "id": "no_visible_face_stays_pending",
+    "people": [
+      {
+        "id": "p1",
+        "name": "Shrish Shah",
+        "voice": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "Alex Lee",
+        "voice": [
+          0,
+          1
+        ]
+      }
+    ],
+    "observations": [
+      {
+        "event_id": "a",
+        "at": 10,
+        "text": "Call me Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": []
+      },
+      {
+        "event_id": "b",
+        "at": 12,
+        "text": "I go by Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": []
+      }
+    ],
+    "expected_aliases": [],
+    "expected_decisions": [
+      "pending",
+      "pending"
+    ]
+  },
+  {
+    "id": "unknown_face_stays_pending",
+    "people": [
+      {
+        "id": "p1",
+        "name": "Shrish Shah",
+        "voice": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "Alex Lee",
+        "voice": [
+          0,
+          1
+        ]
+      }
+    ],
+    "observations": [
+      {
+        "event_id": "a",
+        "at": 10,
+        "text": "Call me Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          "unknown"
+        ]
+      },
+      {
+        "event_id": "b",
+        "at": 12,
+        "text": "I go by Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          "unknown"
+        ]
+      }
+    ],
+    "expected_aliases": [],
+    "expected_decisions": [
+      "pending",
+      "pending"
+    ]
+  },
+  {
+    "id": "unknown_bystander_stays_pending",
+    "people": [
+      {
+        "id": "p1",
+        "name": "Shrish Shah",
+        "voice": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "Alex Lee",
+        "voice": [
+          0,
+          1
+        ]
+      }
+    ],
+    "observations": [
+      {
+        "event_id": "a",
+        "at": 10,
+        "text": "Call me Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          "p1",
+          "unknown"
+        ]
+      },
+      {
+        "event_id": "b",
+        "at": 12,
+        "text": "I go by Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          "p1",
+          "unknown"
+        ]
+      }
+    ],
+    "expected_aliases": [],
+    "expected_decisions": [
+      "pending",
+      "pending"
+    ]
+  },
+  {
+    "id": "two_tracks_same_id_stay_pending",
+    "people": [
+      {
+        "id": "p1",
+        "name": "Shrish Shah",
+        "voice": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "Alex Lee",
+        "voice": [
+          0,
+          1
+        ]
+      }
+    ],
+    "observations": [
+      {
+        "event_id": "a",
+        "at": 10,
+        "text": "Call me Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          "p1",
+          "p1"
+        ]
+      },
+      {
+        "event_id": "b",
+        "at": 12,
+        "text": "I go by Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          "p1",
+          "p1"
+        ]
+      }
+    ],
+    "expected_aliases": [],
+    "expected_decisions": [
+      "pending",
+      "pending"
+    ]
+  },
+  {
+    "id": "low_face_score_stays_pending",
+    "people": [
+      {
+        "id": "p1",
+        "name": "Shrish Shah",
+        "voice": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "Alex Lee",
+        "voice": [
+          0,
+          1
+        ]
+      }
+    ],
+    "observations": [
+      {
+        "event_id": "a",
+        "at": 10,
+        "text": "Call me Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          {
+            "user_id": "p1",
+            "score": 0.49
+          }
+        ]
+      },
+      {
+        "event_id": "b",
+        "at": 12,
+        "text": "I go by Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          {
+            "user_id": "p1",
+            "score": 0.49
+          }
+        ]
+      }
+    ],
+    "expected_aliases": [],
+    "expected_decisions": [
+      "pending",
+      "pending"
+    ]
+  },
+  {
+    "id": "face_score_at_threshold_stays_pending",
+    "people": [
+      {
+        "id": "p1",
+        "name": "Shrish Shah",
+        "voice": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "Alex Lee",
+        "voice": [
+          0,
+          1
+        ]
+      }
+    ],
+    "observations": [
+      {
+        "event_id": "a",
+        "at": 10,
+        "text": "Call me Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          {
+            "user_id": "p1",
+            "score": 0.5
+          }
+        ]
+      },
+      {
+        "event_id": "b",
+        "at": 12,
+        "text": "I go by Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          {
+            "user_id": "p1",
+            "score": 0.5
+          }
+        ]
+      }
+    ],
+    "expected_aliases": [],
+    "expected_decisions": [
+      "pending",
+      "pending"
+    ]
+  },
+  {
+    "id": "missing_face_score_stays_pending",
+    "people": [
+      {
+        "id": "p1",
+        "name": "Shrish Shah",
+        "voice": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "Alex Lee",
+        "voice": [
+          0,
+          1
+        ]
+      }
+    ],
+    "observations": [
+      {
+        "event_id": "a",
+        "at": 10,
+        "text": "Call me Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          {
+            "user_id": "p1"
+          }
+        ]
+      },
+      {
+        "event_id": "b",
+        "at": 12,
+        "text": "I go by Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          {
+            "user_id": "p1"
+          }
+        ]
+      }
+    ],
+    "expected_aliases": [],
+    "expected_decisions": [
+      "pending",
+      "pending"
+    ]
+  },
+  {
+    "id": "null_face_score_stays_pending",
+    "people": [
+      {
+        "id": "p1",
+        "name": "Shrish Shah",
+        "voice": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "Alex Lee",
+        "voice": [
+          0,
+          1
+        ]
+      }
+    ],
+    "observations": [
+      {
+        "event_id": "a",
+        "at": 10,
+        "text": "Call me Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          {
+            "user_id": "p1",
+            "score": null
+          }
+        ]
+      },
+      {
+        "event_id": "b",
+        "at": 12,
+        "text": "I go by Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          {
+            "user_id": "p1",
+            "score": null
+          }
+        ]
+      }
+    ],
+    "expected_aliases": [],
+    "expected_decisions": [
+      "pending",
+      "pending"
+    ]
+  },
+  {
+    "id": "stale_face_stays_pending",
+    "people": [
+      {
+        "id": "p1",
+        "name": "Shrish Shah",
+        "voice": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "Alex Lee",
+        "voice": [
+          0,
+          1
+        ]
+      }
+    ],
+    "observations": [
+      {
+        "event_id": "a",
+        "at": 10,
+        "text": "Call me Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          "p1"
+        ],
+        "vision_at": 8
+      },
+      {
+        "event_id": "b",
+        "at": 12,
+        "text": "I go by Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          "p1"
+        ],
+        "vision_at": 10
+      }
+    ],
+    "expected_aliases": [],
+    "expected_decisions": [
+      "pending",
+      "pending"
+    ]
+  },
+  {
+    "id": "one_bad_one_good_stays_pending",
+    "people": [
+      {
+        "id": "p1",
+        "name": "Shrish Shah",
+        "voice": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "Alex Lee",
+        "voice": [
+          0,
+          1
+        ]
+      }
+    ],
+    "observations": [
+      {
+        "event_id": "a",
+        "at": 10,
+        "text": "Call me Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": []
+      },
+      {
+        "event_id": "b",
+        "at": 12,
+        "text": "I go by Shri",
+        "name": "Shri",
+        "voice": [
+          1,
+          0
+        ],
+        "faces": [
+          "p1"
+        ]
+      }
+    ],
+    "expected_aliases": [],
+    "expected_decisions": [
+      "pending",
+      "pending"
+    ]
+  }
+]

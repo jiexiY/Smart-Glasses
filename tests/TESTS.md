@@ -36,4 +36,12 @@ Do not run unless asked. Each needs `OPENAI_API_KEY`.
 
 ## Name learning
 
-The helper suite runs all 16 labeled synthetic replay cases in both shadow and auto modes. The database suite checks additive migration, concurrent event deduplication, shared aliases, rejection, persistence and cascade deletion. The fake API worker verifies original name-source metadata survives the intent call. This is control-flow validation, not recognition-accuracy evaluation. See `docs/verified-name-learning.md`.
+The helper suite runs 26 labeled synthetic replay cases in both shadow and auto modes (52 runs).
+The original 16 cases are in `fixtures/name_learning.json`; 10 face/voice agreement regressions are
+in `fixtures/name_learning_agreement.json`. Face entries may be UUID strings (score 0.95) or explicit
+objects with `user_id` and optional `score`; `vision_at` overrides the frame timestamp. The database
+suite checks additive migration, concurrent event deduplication, shared aliases, rejection,
+persistence, cascade deletion, and isolation of evidence across policy upgrades. The fake API
+worker verifies original name-source metadata survives the intent call. This is control-flow
+validation, not recognition-accuracy evaluation. See `docs/verified-name-learning.md` and
+`docs/name-learning-test-first.md`.

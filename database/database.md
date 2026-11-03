@@ -3,6 +3,9 @@
 Sqlite identities. `DatabaseManager` in `database.py` is the only API. Live file is `./database/identities.db` (`IDENTITY_DB_PATH` in `core/config.py`).
 
 Name-learning extension: `names.py` owns alias schema and transactional observation policy. `identity_names` stores pending/confirmed/rejected names per UUID; `name_observations` deduplicates original utterance IDs and retains source evidence. Existing users are preserved by an additive migration.
+Only eligible observations with the same evidence policy version count toward a new confirmation.
+Older pending evidence remains inspectable but cannot vote under a stricter policy. Already confirmed
+aliases are preserved; upgrading the policy does not silently revoke existing names.
 
 `get_user_ids_by_name` includes confirmed aliases; `find_user_candidates` also supports individual name parts but does not establish identity. `reject_identity_name` removes an alias from lookup without losing evidence. Shared names are allowed across different UUIDs. See `docs/verified-name-learning.md`.
 

@@ -644,12 +644,14 @@ def test_audio_and_vision_helpers() -> None:
 
 def test_name_learning_replays() -> None:
     from scripts.replay_name_learning import replay
-    cases = Path(__file__).parent / "fixtures" / "name_learning.json"
-    for mode in ("auto", "shadow"):
-        report = replay(cases, mode)
-        assert report["cases"] == report["passed"], report
-        assert report["wrong_aliases"] == report["missed_aliases"] == 0
-        assert report["new_user_records"] == 0
+    for fixture in ("name_learning.json", "name_learning_agreement.json"):
+        cases = Path(__file__).parent / "fixtures" / fixture
+        for mode in ("auto", "shadow"):
+            report = replay(cases, mode)
+            failures = [result for result in report["results"] if not result["passed"]]
+            assert not failures, {"mode": mode, "failures": failures}
+            assert report["wrong_aliases"] == report["missed_aliases"] == 0
+            assert report["new_user_records"] == 0
 
 
 def test_name_source_and_policy() -> None:

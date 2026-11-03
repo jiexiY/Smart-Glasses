@@ -1,4 +1,5 @@
 import gc
+import json
 import os
 import tempfile
 import sqlite3
@@ -58,7 +59,33 @@ def test_identity_names() -> None:
         gc.collect()
 
 
+def test_name_evidence_policy_upgrade() -> None:
+    with tempfile.TemporaryDirectory() as folder:
+        db = DatabaseManager(str(Path(folder) / "policy.db"))
+        db.create_user("p1", "Shrish Shah")
+
+        def observe(event_id: str, at: float, policy: str) -> dict:
+            return db.record_name_observation(
+                user_id="p1", name="Shri", event_id=event_id, observed_at=at,
+                eligible=True, reason="test_evidence",
+                evidence=json.dumps({"policy": policy}), mode="auto",
+            )
+
+        try:
+            assert observe("old", 10, "self-name-v1")["status"] == "pending"
+            assert observe("new-one", 12, "self-name-v2")["status"] == "pending", (
+                "Old voice-only evidence must not confirm a stricter face-and-voice alias"
+            )
+            assert db.get_user_ids_by_name("Shri") == []
+            assert observe("new-two", 14, "self-name-v2")["status"] == "confirmed"
+            assert db.get_user_ids_by_name("Shri") == ["p1"]
+            assert db.get_all_users() == {"p1": "Shrish Shah"}
+        finally:
+            gc.collect()
+
+
 def run_tests() -> None:
+    test_name_evidence_policy_upgrade()
     test_identity_names()
     print("--- Starting Database Tests ---")
 

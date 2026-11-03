@@ -576,15 +576,10 @@
         "faces": []
       }
     ],
-    "expected_aliases": [
-      [
-        "p1",
-        "shri"
-      ]
-    ],
+    "expected_aliases": [],
     "expected_decisions": [
       "pending",
-      "confirmed"
+      "pending"
     ]
   },
   {
