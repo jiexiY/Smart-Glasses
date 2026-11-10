@@ -41,6 +41,13 @@ Do not run unless asked. Each needs `OPENAI_API_KEY`.
 - `tests/test_openai_memory.py` — `analyze_memory` extraction and dedup against known facts.
 - `tests/test_api_worker_live.py` — real `APIWorker` process; PARSE_INTENT for "Hi, my name is John."; expects `intent` or `api_error`.
 
+## Recording situations (opt-in)
+
+When recording/model tests are requested, run `scripts/replay_recording_situations.py` or the
+matching VS Code task. It uses actual local face, voice and ASR models with transformed recordings,
+then isolated coordinator replay. It is intentionally separate from the four offline suites.
+See [`docs/recording-situations.md`](../docs/recording-situations.md) for conditions and limits.
+
 ## Name learning
 
 The helper suite runs 26 labeled synthetic replay cases in both shadow and auto modes (52 runs).

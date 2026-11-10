@@ -54,6 +54,8 @@ on two explicit introductions. Missing/unclear/conflicting evidence stays pendin
 evidence cannot contribute votes. Test-first evidence is in `docs/name-learning-test-first.md`.
 See `workers/coordinator_utils/identity.py` and `docs/identity-registration-testing.md`.
 The four identity situations and explicit-enrollment boundary are in `docs/uncertain-identity-tests.md`.
+Requested recording/model validation uses the opt-in `scripts/replay_recording_situations.py`;
+see `docs/recording-situations.md` for real inputs, controlled variations, and test limits.
 
 ## Queues
 

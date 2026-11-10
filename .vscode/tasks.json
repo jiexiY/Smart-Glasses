@@ -11,6 +11,17 @@
       "group": { "kind": "test", "isDefault": true },
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "dedicated", "clear": false }
+    },
+    {
+      "label": "Run recording situations (real models)",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}/.venv/Scripts/python.exe" },
+      "args": ["-u", "scripts/replay_recording_situations.py"],
+      "options": { "cwd": "${workspaceFolder}", "env": { "PYTHONIOENCODING": "utf-8", "HF_HUB_OFFLINE": "1" } },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": false }
     }
   ]
 }
