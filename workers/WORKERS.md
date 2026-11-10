@@ -23,6 +23,9 @@ The worker file is the high-level sequence. Step details live in the helper pack
 
 Payloads: [event_definitions.md](event_definitions.md).
 
+The coordinator expires unresolved identity requests even while its input queue is idle. Unknown
+observations never create people automatically; explicit enrollment uses a separate local event.
+
 ## Types
 
 Use `T | None` only when `None` is a real absence (no current utterance, queue timeout, nothing to publish). Do not mark a field optional because `setup()` has not assigned it yet.

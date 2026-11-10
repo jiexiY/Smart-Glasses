@@ -44,13 +44,16 @@ The dashboard (`frontend/server.py`, port `MONITORING_PORT`) drains `log_queue` 
 
 Identity registration resolves the observed face or self-introduction voice before using a spoken name.
 Known UUIDs keep their stored names. Unresolved single-track candidates retry for a bounded window;
-only a stable unknown track can create a user. Names alone never select an existing user.
+unknown observations and expiry never create a user. New enrollment requires a separate explicit
+confirmation tied to the pending request, plus a fresh stable sole track and a final identity check.
+Names alone never select an existing user; confirmed new people may share a display name.
 Known-person name learning now records separate pending/confirmed/rejected aliases. It defaults
 to shadow mode; see `docs/verified-name-learning.md` before enabling automatic confirmation.
 Automatic aliases require one recent, sufficiently scored face agreeing with a unique voice match
 on two explicit introductions. Missing/unclear/conflicting evidence stays pending; older policy
 evidence cannot contribute votes. Test-first evidence is in `docs/name-learning-test-first.md`.
 See `workers/coordinator_utils/identity.py` and `docs/identity-registration-testing.md`.
+The four identity situations and explicit-enrollment boundary are in `docs/uncertain-identity-tests.md`.
 
 ## Queues
 
@@ -108,6 +111,7 @@ Unit tests, and only these unless asked:
 PYTHONPATH=. .venv/bin/python tests/test_worker_helpers.py
 PYTHONPATH=. .venv/bin/python tests/test_database.py
 PYTHONPATH=. .venv/bin/python tests/test_api_worker_queue.py
+PYTHONPATH=. .venv/bin/python tests/test_identity_scenarios.py
 ```
 
 Do not run `tests/test_openai_tool.py`, `tests/test_openai_memory.py`, `main.py`, or `api/simulator.py` unless asked.

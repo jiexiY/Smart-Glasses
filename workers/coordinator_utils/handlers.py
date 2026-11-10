@@ -69,6 +69,7 @@ def handle_event(event: dict[str, Any], state: CoordinatorState) -> None:
         "speech": handle_speech,
         "vlm_result": handle_vlm_result,
         "intent": handle_intent,
+        "confirm_enrollment": handle_confirm_enrollment,
         "api_error": handle_api_error,
     }
     handler = handlers.get(event.get("type", "unknown"), handle_unknown_event)
@@ -260,35 +261,51 @@ def attempt_identity_registration(
         latest_time, latest_faces = state.vision_cache[-1]
         if any(item.get("track_id") == track_id for item in latest_faces):
             pending.last_seen = latest_time
-    state.pending_identities.setdefault(track_id, pending)
-    if resolution.status != "unknown":
+    if track_id not in state.pending_identities:
+        state.pending_identities[track_id] = pending
+        print(f"[Coordinator] Pending identity: '{name}', request {pending.request_id}")
+
+
+def handle_confirm_enrollment(event: dict[str, Any], state: CoordinatorState) -> None:
+    # this local confirmation is separate from anything the LLM can put in intent args
+    request_id = event.get("request_id")
+    if event.get("confirmed") is not True or not isinstance(request_id, str):
         return
-    # an existing name without biometric agreement stays unresolved
-    if state.db.get_user_ids_by_name(name):
+    pending = next((item for item in state.pending_identities.values()
+                    if item.request_id == request_id), None)
+    if pending is None:
         return
-    if not stable_unknown_track(state.vision_cache, track_id, timestamp):
+    now = time.time()
+    track_id = pending.track_id
+    if (not 0 <= now - pending.timestamp <= RETRY_WINDOW
+            or not 0 <= now - pending.last_seen <= MAX_FRAME_AGE):
+        state.pending_identities.pop(track_id, None)
         return
-    # resolve again against current records before the first write
+    if not state.vision_cache:
+        return
     latest_time, latest_faces = state.vision_cache[-1]
-    if (len(latest_faces) != 1 or latest_faces[0].get("track_id") != track_id
-            or not 0 <= latest_time - pending.timestamp <= RETRY_WINDOW):
+    if (not 0 <= now - latest_time <= MAX_FRAME_AGE
+            or latest_time < pending.timestamp or len(latest_faces) != 1
+            or latest_faces[0].get("track_id") != track_id):
         return
+    # a fresh match wins even when the operator had already requested a new person
     latest_users = state.db.get_all_users()
     latest_voices = state.db.get_all_voices()
     latest = resolve_identity(
         state.vision_cache, latest_time, latest_users, latest_voices,
-        pending.voice_embedding, is_self_intro, state.registered_tracks,
+        pending.voice_embedding, pending.args.get("is_self_introduction", False), state.registered_tracks,
     )
     if latest.status == "known" and latest.user_id is not None:
         reuse_identity(state, pending, latest.user_id, latest.face, latest_users, latest_voices, latest_time)
         return
-    if latest.status != "unknown" or name in latest_users.values():
+    if latest.status != "unknown":
         return
     if not stable_unknown_track(state.vision_cache, track_id, latest_time):
         return
     create_identity(
-        state, name, pending.args.get("speaker_name", config.DEFAULT_NAME),
-        is_self_intro, pending.timestamp, pending.voice_embedding, latest.face, latest_time,
+        state, pending.args["name"].strip(), pending.args.get("speaker_name", config.DEFAULT_NAME),
+        pending.args.get("is_self_introduction", False), pending.timestamp,
+        pending.voice_embedding, latest.face, latest_time,
     )
     state.pending_identities.pop(track_id, None)
 

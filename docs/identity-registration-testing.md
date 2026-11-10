@@ -1,5 +1,8 @@
 # Issue 8: identity registration investigation and tests
 
+Current follow-up: [uncertain recognition tests](uncertain-identity-tests.md) removes automatic
+enrollment after repeated unknown observations. The historical fix below is superseded on that point.
+
 Upstream: https://github.com/UF-Smart-Glasses/Smart-Glasses/issues/8
 
 Baseline: `455c04fb78089d33f70b02bb4b999ffa48eb7834`.

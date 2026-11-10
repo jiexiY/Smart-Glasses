@@ -33,11 +33,16 @@ Requests expire after five seconds from the original utterance timestamp, or whe
 not been observed for more than one second. Expiry does not create a user. No target track means no
 automatic face enrollment; a new introduction or usable self-introduction voice is needed.
 
-An unknown track must have at least three valid observations spanning 0.5 seconds, with no gap over
-one second, before enrollment. A final check rereads users/voices and checks the latest frame. The
-latest frame must still contain the original sole target. These are conservative initial controls,
-not calibrated recognition-accuracy guarantees. Recognition still relies on the vision worker's
-face result; the coordinator does not implement a second face model.
+An unknown track never enrolls automatically, even after repeated observations. The separate local
+`confirm_enrollment` event must contain `confirmed: true` and the pending request's `request_id`.
+It is not an LLM intent/tool or a name argument. Confirmation is one-use and bound to the original
+name, track and five-second lifetime. The latest frame must be fresh and contain only that track,
+with three valid observations spanning 0.5 seconds and no gap over one second. A final identity
+check reuses a recovered existing person or rejects conflicting evidence before any new write.
+An explicitly confirmed new person can share an existing display name. The coordinator supports
+this confirmation contract; a wearer-facing confirmation UI is not implemented here.
+These are conservative controls, not calibrated recognition-accuracy guarantees. Recognition
+still relies on the vision worker's face result; the coordinator has no second face model.
 
 `registered_tracks` prevents another UUID while the owning worker is processing `REGISTER_FACE`.
 It follows continuously observed tracks and expires after a one-second tracking gap. New enrollment

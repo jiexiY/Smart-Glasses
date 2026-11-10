@@ -329,6 +329,8 @@ def test_identity_registration() -> None:
         },
         state,
     )
+    assert directory.created == []
+    confirm_enrollment(state, 4, 5.0)
     assert directory.created[0][1] == "Ada"
     assert vision.items[0]["cmd"] == "REGISTER_FACE"
     assert vision.items[0]["track_id"] == 4
@@ -391,6 +393,13 @@ def registration_event(name: str = "jess", timestamp: float = 5.0,
 def observe(state: CoordinatorState, timestamp: float, faces: list[dict]) -> None:
     with patch("workers.coordinator_utils.handlers.time.time", return_value=timestamp):
         handle_event({"type": "vision_result", "faces": faces}, state)
+
+
+def confirm_enrollment(state: CoordinatorState, track_id: int, timestamp: float) -> None:
+    request_id = state.pending_identities[track_id].request_id
+    with patch("workers.coordinator_utils.handlers.time.time", return_value=timestamp):
+        handle_event({"type": "confirm_enrollment", "request_id": request_id,
+                      "confirmed": True}, state)
 
 
 def test_voice_identity_independent_of_name() -> None:
@@ -459,6 +468,8 @@ def test_unknown_retries_and_registers_once() -> None:
     observe(state, 5.3, [face])
     assert directory.created == []
     observe(state, 5.6, [face])
+    assert directory.created == [] and 4 in state.pending_identities
+    confirm_enrollment(state, 4, 5.6)
     assert len(directory.created) == 1 and state.pending_identities == {}
     assert len(vision.items) == 1
     new_id = directory.created[0][0]
@@ -537,8 +548,10 @@ def test_final_check_sees_new_voice_record() -> None:
     voice = np.array([1.0, 0.0])
     face = identity_face()
     state.vision_cache.extend([(4.4, [face]), (4.7, [face]), (5.0, [face])])
-    with patch.object(directory, "get_all_voices", side_effect=[{}, {"person-1": [voice]}]):
-        handle_event(registration_event(voice=voice, self_intro=True), state)
+    handle_event(registration_event(voice=voice, self_intro=True), state)
+    assert directory.created == [] and 4 in state.pending_identities
+    with patch.object(directory, "get_all_voices", return_value={"person-1": [voice]}):
+        confirm_enrollment(state, 4, 5.0)
     assert directory.created == [] and state.pending_identities == {}
     assert len(vision.items) == 1 and vision.items[0]["user_id"] == "person-1"
     assert audio.items == []

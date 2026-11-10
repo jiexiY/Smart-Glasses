@@ -126,3 +126,19 @@ When there is an error with any api call
 | `type` | `string` | Always `"api_error"` |
 | `error` | `string` | The error in string format |
 | `timestamp` | `time` | Time stamp when error happened.|
+
+### 8. Local enrollment confirmation (`confirm_enrollment`)
+
+This event belongs to an explicit operator confirmation adapter, not the LLM tool schema.
+The pending request is logged by the coordinator and bound to its original name, face track and
+five-second lifetime. Repeated unknown observations never count as confirmation.
+
+```python
+{"type": "confirm_enrollment", "request_id": "pending-request-uuid", "confirmed": True}
+```
+
+Only the exact live request can be confirmed. A fresh sole target, stable observations, and a
+new identity check are required. Known matches reuse their UUID; conflicts, expiry, stale frames,
+or changed targets do not enroll. Duplicate confirmations are harmless. The LLM cannot trigger
+this by emitting `CONFIRM_ENROLLMENT` or adding `confirmed` to `REGISTER_IDENTITY` arguments.
+There is no wearer-facing confirmation UI in this patch; automatic new-contact creation is off.

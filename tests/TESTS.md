@@ -13,9 +13,14 @@ Safe without models or API keys. Do not load Silero, Redimnet, Parakeet, or Insp
 - `tests/test_worker_helpers.py` — speaker cosine match and merge; face-track update and expiry; best identity; voice and face association; intent and memory events; coordinator speech and registration; PCM, chunks, utterances, voice commands, sampled frames, tracked-face registration.
 - `tests/test_database.py` — `DatabaseManager` users, face and voice embeddings, chat history. Opens a temp `identities.db` and deletes it (including `-shm` and `-wal`). Never use `./database/identities.db`.
 - `tests/test_api_worker_queue.py` — `APIWorker` with fake clients: PARSE_INTENT and ANALYZE_MEMORY events, empty and unknown commands, `api_error` when the client raises.
+- `tests/test_identity_scenarios.py` — four requested identity situations plus recovery, expiry,
+  explicit enrollment, stale/duplicate confirmation and conflicting evidence. Uses simulated
+  recognition outputs and temporary SQLite storage. `--report PATH` saves individual results.
 
 Install `requirements-test.txt` in a Python 3.11 virtual environment for these offline suites.
 On Windows set `$env:PYTHONPATH = '.'` and use `.venv\Scripts\python.exe`.
+Run all four offline suites with `.venv\Scripts\python.exe scripts/run_identity_checks.py`,
+or use the fork's VS Code task. Individual logs are stored under ignored `.test-results/identity/`.
 
 The worker helper suite includes issue #8 regressions: known faces under different names; real
 bundled voice vectors under different names; conflicting and ambiguous recognition; stale/missing
@@ -25,6 +30,8 @@ unused connections before deleting temporary files because Windows keeps open ha
 
 Dataset inventory, baseline failure, commands and validation limits:
 [`docs/identity-registration-testing.md`](../docs/identity-registration-testing.md).
+The repeated-unknown regression and explicit-enrollment change are documented in
+[`docs/uncertain-identity-tests.md`](../docs/uncertain-identity-tests.md).
 
 ## Live OpenAI
 

@@ -3,6 +3,7 @@
 
 import multiprocessing as mp
 import queue
+import time
 from collections import deque
 
 import numpy as np
@@ -11,7 +12,7 @@ from core import config
 from core.log_interceptor import install_log_interceptor
 from database.database import DatabaseManager
 from workers.base import BaseWorker
-from workers.coordinator_utils.handlers import CoordinatorState, handle_event
+from workers.coordinator_utils.handlers import CoordinatorState, handle_event, retry_pending_identities
 
 
 class Coordinator(BaseWorker):
@@ -69,6 +70,7 @@ class Coordinator(BaseWorker):
                     # vision, speech, and llm results all land here
                     handle_event(event, self.state)
                 except queue.Empty:
+                    retry_pending_identities(self.state, time.time(), [])
                     continue
                 except KeyboardInterrupt:
                     break

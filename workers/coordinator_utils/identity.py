@@ -1,6 +1,7 @@
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
+from uuid import uuid4
 
 import numpy as np
 
@@ -21,6 +22,7 @@ class PendingIdentity:
     voice_embedding: np.ndarray | None
     track_id: int
     last_seen: float
+    request_id: str = field(default_factory=lambda: str(uuid4()))
 
 
 @dataclass

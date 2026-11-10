@@ -3,6 +3,7 @@ docker_legacy/
 
 .venv/
 __pycache__/
+.test-results/
 .DS_Store
 
 /api/video_converter.py
